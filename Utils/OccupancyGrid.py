@@ -1,8 +1,9 @@
-
 import json
 import numpy as np
 import matplotlib.pyplot as plt
 
+def spokesGrid(radius, unitGridSize):
+    numGrids = 2 * radius
 
 
 
@@ -13,7 +14,7 @@ def main():
         map = input['map']
 
     numSamplesPerRev = len(map[list(map)[0]]['range'])  # Get how many points per revolution
-    angularStep = np.pi * 2 / numSamplesPerRev
+    angularStep = np.pi / numSamplesPerRev
     count = 0
     plt.figure(figsize=(19.20, 19.20))
     xx = []
@@ -21,7 +22,7 @@ def main():
     for key in sorted(map.keys()):
         count += 1
         x, y, theta, range = map[key]['x'], map[key]['y'], map[key]['theta'], map[key]['range']
-        rads = np.linspace(theta, theta + np.pi , num=numSamplesPerRev)
+        rads = np.linspace(theta - np.pi / 2, theta + np.pi / 2 , num=numSamplesPerRev)
         range = np.asarray(range)
         range_idx = range < 50
         range = range[range_idx]
@@ -31,13 +32,13 @@ def main():
         xx.append(x)
         yy.append(y)
         if count % 1 == 0:
-            #plt.scatter(px, py, c= 'k', s = 1)
-
+            if count == 1:
+                startx, starty = x, y
             plt.scatter(x, y, c='r', s=35)
-        if count % 3 == 0:
-            plt.plot(xx, yy)
-            plt.show()
-
+            plt.scatter(px, py, c='k', s=1)
+    plt.scatter(startx, starty, c='g', s=500)
+    plt.scatter(x, y, c='b', s=500)
+    plt.plot(xx, yy)
     plt.show()
 
 
