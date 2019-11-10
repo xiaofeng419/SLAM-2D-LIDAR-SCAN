@@ -2,10 +2,6 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
-def spokesGrid(radius, unitGridSize):
-    numGrids = 2 * radius
-
-
 def main():
     jsonFile = "../DataSet/PreprocessedData/intel_gfs"
     with open(jsonFile, 'r') as f:
@@ -35,8 +31,8 @@ def main():
                 startx, starty = x, y
             plt.scatter(x, y, c='r', s=35)
             plt.scatter(px, py, c='k', s=1)
-        if count % 3 == 0:
-            plt.show()
+        #if count % 3 == 0:
+            #plt.show()
     plt.scatter(startx, starty, c='g', s=500)
     plt.scatter(x, y, c='b', s=500)
     plt.plot(xx, yy)
