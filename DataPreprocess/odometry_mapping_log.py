@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def main():
-    jsonFile = "../DataSet/PreprocessedData/intel_gfs"
+    jsonFile = "../DataSet/PreprocessedData/intel_corrected_log"
     with open(jsonFile, 'r') as f:
         input = json.load(f)
         map = input['map']

@@ -7,4 +7,8 @@ print(a)
 c = np.asarray([1, 5, 8])
 c = c.reshape(3,1)
 b = a[a > c]
-print (b)
+
+d = 360
+e = -1 % 360
+print (e)
+

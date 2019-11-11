@@ -9,18 +9,18 @@ class occupancyGrid:
         x = np.linspace(-xNum * unitGridSize / 2, xNum * unitGridSize / 2, num=xNum + 1)
         y = np.linspace(-xNum * unitGridSize / 2, xNum * unitGridSize / 2, num=yNum + 1)
         self.OccupancyGridX, self.OccupancyGridY = np.meshgrid(x, y)
-        self.occupancyGridVisited = np.ones((xNum, yNum))
-        self.occupancyGridTotal = np.ones((xNum, yNum))
+        self.occupancyGridVisited = np.ones((xNum + 1, yNum + 1))
+        self.occupancyGridTotal = 2 * np.ones((xNum + 1, yNum + 1))
         self.unitGridSize = unitGridSize
         self.lidarFOV = lidarFOV
         self.lidarMaxRange = lidarMaxRange
         self.wallThickness = wallThickness
-        self.mapXLim = (self.OccupancyGridX[0, 0], self.OccupancyGridX[0, -1])
-        self.mapYLim = (self.OccupancyGridY[0, 0], self.OccupancyGridY[-1, 0])
+        self.mapXLim = [self.OccupancyGridX[0, 0], self.OccupancyGridX[0, -1]]
+        self.mapYLim = [self.OccupancyGridY[0, 0], self.OccupancyGridY[-1, 0]]
         self.numSamplesPerRev = numSamplesPerRev
         self.spokesStartIdx = spokesStartIdx
         self.angularStep = lidarFOV / numSamplesPerRev
-        self.numSpokes = 2 * np.pi / self.angularStep
+        self.numSpokes = int(np.rint(2 * np.pi / self.angularStep))
         xGrid, yGrid, bearingIdxGrid, rangeIdxGrid = self.spokesGrid()
         radByX, radByY, radByR = self.itemizeSpokesGrid(xGrid, yGrid, bearingIdxGrid, rangeIdxGrid)
         self.radByX = radByX
@@ -29,27 +29,29 @@ class occupancyGrid:
 
     def spokesGrid(self):
         """
-        0th ray appear at north, then clock wise increase angle
+        0th ray is at south, then counter-clock wise increases. Theta 0 is at east.
         """
         numHalfElem = int(self.lidarMaxRange / self.unitGridSize)
         bearingIdxGrid = np.zeros((2 * numHalfElem + 1, 2 * numHalfElem + 1))
         x = np.linspace(-self.lidarMaxRange, self.lidarMaxRange, 2 * numHalfElem + 1)
         y = np.linspace(-self.lidarMaxRange, self.lidarMaxRange, 2 * numHalfElem + 1)
         xGrid, yGrid = np.meshgrid(x, y)
-        bearingIdxGrid[:, numHalfElem + 1: 2 * numHalfElem + 1] = np.rint((np.pi / 2 - np.arctan(
+        bearingIdxGrid[:, numHalfElem + 1: 2 * numHalfElem + 1] = np.rint((np.pi / 2 + np.arctan(
             yGrid[:, numHalfElem + 1: 2 * numHalfElem + 1] / xGrid[:, numHalfElem + 1: 2 * numHalfElem + 1]))
                 / np.pi / 2 * self.numSpokes - 0.5).astype(int)
         bearingIdxGrid[:, 0: numHalfElem] = np.fliplr(np.flipud(bearingIdxGrid))[:, 0: numHalfElem] + int(self.numSpokes / 2)
-        bearingIdxGrid[0: numHalfElem, numHalfElem] = int(self.numSpokes / 2)
+        bearingIdxGrid[numHalfElem + 1: 2 * numHalfElem + 1, numHalfElem] = int(self.numSpokes / 2)
         rangeIdxGrid = np.sqrt(xGrid**2 + yGrid**2)
         return xGrid, yGrid, bearingIdxGrid, rangeIdxGrid
 
     def itemizeSpokesGrid(self, xGrid, yGrid, bearingIdxGrid, rangeIdxGrid):
-        spokes = np.unique(bearingIdxGrid)
+        '''
+            Due to discretization, later theta added could lead to up to 1 deg discretization error
+        '''
         radByX = []
         radByY = []
         radByR = []
-        for i in spokes:
+        for i in range(self.numSpokes):
             idx = np.argwhere(bearingIdxGrid == i)
             radByX.append(xGrid[idx[:, 0], idx[:, 1]])
             radByY.append(yGrid[idx[:, 0], idx[:, 1]])
@@ -59,31 +61,34 @@ class occupancyGrid:
     def expandOccupancyGridHelper(self, position, axis):
         gridShape = self.occupancyGridVisited.shape
         if axis == 0:
-            insertion = np.ones((gridShape[0], int(gridShape[1] / 2)))
+            insertion = np.ones((int(gridShape[0] / 2),  gridShape[1]))
             if position == 0:
                 x = self.OccupancyGridX[0]
-                y = np.linspace(self.mapYLim[0] - int(gridShape[1] / 2) * self.unitGridSize, self.mapYLim[0],
-                                num=int(gridShape[1] / 2), endpoint=False)
+                y = np.linspace(self.mapYLim[0] - int(gridShape[0] / 2) * self.unitGridSize, self.mapYLim[0],
+                                num=int(gridShape[0] / 2), endpoint=False)
             else:
                 x = self.OccupancyGridX[0]
-                y = np.linspace(self.mapYLim[1] + self.unitGridSize, self.mapYLim[1] + (int(gridShape[1] / 2) + 1) * self.unitGridSize,
-                                num=int(gridShape[1] / 2), endpoint=False)
+                y = np.linspace(self.mapYLim[1] + self.unitGridSize, self.mapYLim[1] + (int(gridShape[0] / 2) + 1) * self.unitGridSize,
+                                num=int(gridShape[0] / 2), endpoint=False)
         else:
-            insertion = np.ones((int(gridShape[1]/2), gridShape[0]))
+            insertion = np.ones((gridShape[0], int(gridShape[1] / 2)))
             if position == 0:
-                y = self.OccupancyGridY[0]
+                y = self.OccupancyGridY[:, 0]
                 x = np.linspace(self.mapXLim[0] - int(gridShape[1] / 2) * self.unitGridSize, self.mapXLim[0],
                                 num=int(gridShape[1] / 2), endpoint=False)
             else:
-                y = self.OccupancyGridY[0]
+                y = self.OccupancyGridY[:, 0]
                 x = np.linspace(self.mapXLim[1] + self.unitGridSize, self.mapXLim[1] + (int(gridShape[1] / 2) + 1) * self.unitGridSize,
                                 num=int(gridShape[1] / 2), endpoint=False)
-
-        np.insert(self.occupancyGridVisited, position, insertion, axis=axis)
-        np.insert(self.occupancyGridTotal, position, insertion, axis=axis)
+        self.occupancyGridVisited = np.insert(self.occupancyGridVisited, [position], insertion, axis=axis)
+        self.occupancyGridTotal = np.insert(self.occupancyGridTotal, [position], 2 * insertion, axis=axis)
         xv, yv = np.meshgrid(x, y)
-        np.insert(self.OccupancyGridX, position, xv, axis=axis)
-        np.insert(self.OccupancyGridY, position, yv, axis=axis)
+        self.OccupancyGridX = np.insert(self.OccupancyGridX, [position], xv, axis=axis)
+        self.OccupancyGridY = np.insert(self.OccupancyGridY, [position], yv, axis=axis)
+        self.mapXLim[0] = self.OccupancyGridX[0, 0]
+        self.mapXLim[1] = self.OccupancyGridX[0, -1]
+        self.mapYLim[0] = self.OccupancyGridY[0, 0]
+        self.mapYLim[1] = self.OccupancyGridY[-1, 0]
 
     def expandOccupancyGrid(self, expandDirection):
         gridShape = self.occupancyGridVisited.shape
@@ -96,11 +101,10 @@ class occupancyGrid:
         else:
             self.expandOccupancyGridHelper(gridShape[0], 0)
 
-    def convertRealXYToMapIdx(self, X, Y, mapXLim, mapYLim, unitGridSize):
+    def convertRealXYToMapIdx(self, X, Y):
         #mapXLim is (2,) array for left and right limit, same for mapYLim
-        assert all(X > mapXLim[0] & X < mapXLim[1] & Y > mapYLim[0] & Y < mapYLim[1])
-        xIdx = int(np.rint((X - mapXLim[0]) / unitGridSize + 1))
-        yIdx = int(np.rint((Y - mapYLim[0]) / unitGridSize + 1))
+        xIdx = (np.rint((X - self.mapXLim[0]) / self.unitGridSize)).astype(int)
+        yIdx = (np.rint((Y - self.mapYLim[0]) / self.unitGridSize)).astype(int)
         return xIdx, yIdx
 
     def checkMapToExpand(self, X, Y):
@@ -118,23 +122,32 @@ class occupancyGrid:
     def updateOccupancyGrid(self, reading):
         x, y, theta, rMeasure = reading['x'], reading['y'], reading['theta'], reading['range']
         rMeasure = np.asarray(rMeasure)
-        spokesOffsetIdxByTheta = int(np.rint((2 * np.pi - theta) / (2 * np.pi) * self.numSpokes))
+        spokesOffsetIdxByTheta = int(np.rint(theta / (2 * np.pi) * self.numSpokes))
         for i in range(self.numSamplesPerRev):
-            idx = (self.spokesStartIdx + spokesOffsetIdxByTheta + i) % 360
-            xInSpoke = self.radByX[idx]
-            yInSpoke = self.radByY[idx]
-            rInSpoke = self.radByR[idx]
-            emptyIdx = np.argwhere(rInSpoke < rMeasure[i] - self.wallThickness / 2)
-            occupiedIdx = np.argwhere((rInSpoke > rMeasure[i] - self.wallThickness / 2) & (rInSpoke < rMeasure[i] + self.wallThickness / 2))
-            if len(emptyIdx) != 0 or len(occupiedIdx) != 0:
-                expandDirection = self.checkMapToExpand(x + xInSpoke[emptyIdx], y + yInSpoke[emptyIdx])
-                while (expandDirection != -1):
-                    self.expandOccupancyGrid(expandDirection)
-            #xIdx, yIdx = self.convertRealXYToMapIdx(x + xInSpoke[emptyIdx], y + yInSpoke[emptyIdx])
+            idx = int(np.rint((self.spokesStartIdx + spokesOffsetIdxByTheta + i) % self.numSpokes))
+            xAtSpokeDir = self.radByX[idx]
+            yAtSpokeDir = self.radByY[idx]
+            rAtSpokeDir = self.radByR[idx]
+            emptyIdx = np.argwhere(rAtSpokeDir < rMeasure[i] - self.wallThickness / 2)
+            occupiedIdx = np.argwhere((rAtSpokeDir > rMeasure[i] - self.wallThickness / 2) & (rAtSpokeDir < rMeasure[i] + self.wallThickness / 2))
+
+            if len(occupiedIdx) == 0:
+                continue
+            expandDirection = max(self.checkMapToExpand(x + xAtSpokeDir[emptyIdx], y + yAtSpokeDir[emptyIdx]),
+                                  self.checkMapToExpand(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx]))
+            while (expandDirection != -1):
+                self.expandOccupancyGrid(expandDirection)
+                expandDirection = max(self.checkMapToExpand(x + xAtSpokeDir[emptyIdx], y + yAtSpokeDir[emptyIdx]),
+                                      self.checkMapToExpand(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx]))
+            xIdx, yIdx = self.convertRealXYToMapIdx(x + xAtSpokeDir[emptyIdx], y + yAtSpokeDir[emptyIdx])
+            self.occupancyGridTotal[yIdx, xIdx] += 1
+            xIdx, yIdx = self.convertRealXYToMapIdx(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx])
+            self.occupancyGridVisited[yIdx, xIdx] += 1
+            self.occupancyGridTotal[yIdx, xIdx] += 1
 
 def main():
-    initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 1, 1, 0.2, np.pi, 10 # in Meters
-    wallThickness = 1.5 * unitGridSize
+    initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
+    wallThickness = 5 * unitGridSize
     jsonFile = "../DataSet/PreprocessedData/intel_corrected_log"
     with open(jsonFile, 'r') as f:
         input = json.load(f)
@@ -146,7 +159,12 @@ def main():
     plt.figure(figsize=(19.20, 19.20))
     for key in sorted(sensorData.keys()):
         count += 1
-        og.updateOccupancyGrid(sensorData[key])
-
+        og.updateOccupancyGrid(sensorData[key]) 
+    map = np.flipud(1 - og.occupancyGridVisited / og.occupancyGridTotal)
+    plt.matshow(map, cmap='gray', extent=[og.mapXLim[0], og.mapXLim[1], og.mapYLim[1], og.mapYLim[0]])
+    plt.show()
+    map = map < 0.5
+    plt.matshow(map, cmap='gray', extent=[og.mapXLim[0], og.mapXLim[1], og.mapYLim[1], og.mapYLim[0]])
+    plt.show()
 if __name__ == '__main__':
     main()
