@@ -8,7 +8,7 @@ c = np.asarray([1, 5, 8])
 c = c.reshape(3,1)
 b = a[a > c]
 
-d = 360
-e = -1 % 360
-print (e)
-
+a = a.reshape(3,3, 1)
+cc = np.asarray(([1, 4])).reshape(1, 1, -1)
+dd = cc + a
+d = 1

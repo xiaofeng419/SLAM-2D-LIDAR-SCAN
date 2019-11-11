@@ -2,7 +2,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
-class occupancyGrid:
+class OccupancyGrid:
     def __init__(self, mapXLength, mapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness, spokesStartIdx):
         xNum = int(mapXLength / unitGridSize)
         yNum = int(mapYLength / unitGridSize)
@@ -28,9 +28,7 @@ class occupancyGrid:
         self.radByR = radByR
 
     def spokesGrid(self):
-        """
-        0th ray is at south, then counter-clock wise increases. Theta 0 is at east.
-        """
+        # 0th ray is at south, then counter-clock wise increases. Theta 0 is at east.
         numHalfElem = int(self.lidarMaxRange / self.unitGridSize)
         bearingIdxGrid = np.zeros((2 * numHalfElem + 1, 2 * numHalfElem + 1))
         x = np.linspace(-self.lidarMaxRange, self.lidarMaxRange, 2 * numHalfElem + 1)
@@ -45,9 +43,7 @@ class occupancyGrid:
         return xGrid, yGrid, bearingIdxGrid, rangeIdxGrid
 
     def itemizeSpokesGrid(self, xGrid, yGrid, bearingIdxGrid, rangeIdxGrid):
-        '''
-            Due to discretization, later theta added could lead to up to 1 deg discretization error
-        '''
+        # Due to discretization, later theta added could lead to up to 1 deg discretization error
         radByX = []
         radByY = []
         radByR = []
@@ -101,23 +97,30 @@ class occupancyGrid:
         else:
             self.expandOccupancyGridHelper(gridShape[0], 0)
 
-    def convertRealXYToMapIdx(self, X, Y):
+    def convertRealXYToMapIdx(self, x, y):
         #mapXLim is (2,) array for left and right limit, same for mapYLim
-        xIdx = (np.rint((X - self.mapXLim[0]) / self.unitGridSize)).astype(int)
-        yIdx = (np.rint((Y - self.mapYLim[0]) / self.unitGridSize)).astype(int)
+        xIdx = (np.rint((x - self.mapXLim[0]) / self.unitGridSize)).astype(int)
+        yIdx = (np.rint((y - self.mapYLim[0]) / self.unitGridSize)).astype(int)
         return xIdx, yIdx
 
-    def checkMapToExpand(self, X, Y):
-        if any(X < self.mapXLim[0]):
+    def checkMapToExpand(self, x, y):
+        if any(x < self.mapXLim[0]):
             return 1
-        elif any(X > self.mapXLim[1]):
+        elif any(x > self.mapXLim[1]):
             return 2
-        elif any(Y < self.mapYLim[0]):
+        elif any(y < self.mapYLim[0]):
             return 3
-        elif any(Y > self.mapYLim[1]):
+        elif any(y > self.mapYLim[1]):
             return 4
         else:
             return -1
+
+    def checkAndExapndOG(self, x, y):
+        """check x, y (vector points) are inside OG. If not, expand OG."""
+        expandDirection = self.checkMapToExpand(x, y)
+        while (expandDirection != -1):
+            self.expandOccupancyGrid(expandDirection)
+            expandDirection = self.checkMapToExpand(x, y)
 
     def updateOccupancyGrid(self, reading):
         x, y, theta, rMeasure = reading['x'], reading['y'], reading['theta'], reading['range']
@@ -130,20 +133,29 @@ class occupancyGrid:
             rAtSpokeDir = self.radByR[idx]
             emptyIdx = np.argwhere(rAtSpokeDir < rMeasure[i] - self.wallThickness / 2)
             occupiedIdx = np.argwhere((rAtSpokeDir > rMeasure[i] - self.wallThickness / 2) & (rAtSpokeDir < rMeasure[i] + self.wallThickness / 2))
-
+            self.checkAndExapndOG(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx])
             if len(occupiedIdx) == 0:
                 continue
-            expandDirection = max(self.checkMapToExpand(x + xAtSpokeDir[emptyIdx], y + yAtSpokeDir[emptyIdx]),
-                                  self.checkMapToExpand(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx]))
-            while (expandDirection != -1):
-                self.expandOccupancyGrid(expandDirection)
-                expandDirection = max(self.checkMapToExpand(x + xAtSpokeDir[emptyIdx], y + yAtSpokeDir[emptyIdx]),
-                                      self.checkMapToExpand(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx]))
             xIdx, yIdx = self.convertRealXYToMapIdx(x + xAtSpokeDir[emptyIdx], y + yAtSpokeDir[emptyIdx])
             self.occupancyGridTotal[yIdx, xIdx] += 1
             xIdx, yIdx = self.convertRealXYToMapIdx(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx])
             self.occupancyGridVisited[yIdx, xIdx] += 1
             self.occupancyGridTotal[yIdx, xIdx] += 1
+
+    def plotOccupancyGrid(self, xRange = None, yRange= None):
+        if xRange is None:
+            xRange = self.mapXLim
+        if yRange is None:
+            yRange = self.mapYLim
+        ogMap = self.occupancyGridVisited / self.occupancyGridTotal
+        xIdx, yIdx = self.convertRealXYToMapIdx(xRange, yRange)
+        ogMap = ogMap[yIdx[0]: yIdx[1], xIdx[0]: xIdx[1]]
+        ogMap = np.flipud(1 - ogMap)
+        plt.matshow(ogMap, cmap='gray', extent=[xRange[0], xRange[1], yRange[0], yRange[1]])
+        plt.show()
+        ogMap = ogMap >= 0.5
+        plt.matshow(ogMap, cmap='gray', extent=[xRange[0], xRange[1], yRange[0], yRange[1]])
+        plt.show()
 
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
@@ -154,17 +166,13 @@ def main():
         sensorData = input['map']
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
     spokesStartIdx = int(0) # theta= 0 is x direction. spokes=0 is y direction, the first ray of lidar scan direction. spokes increase clockwise
-    og = occupancyGrid(initMapXLength, initMapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness, spokesStartIdx)
+    og = OccupancyGrid(initMapXLength, initMapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness, spokesStartIdx)
     count = 0
     plt.figure(figsize=(19.20, 19.20))
     for key in sorted(sensorData.keys()):
         count += 1
-        og.updateOccupancyGrid(sensorData[key]) 
-    map = np.flipud(1 - og.occupancyGridVisited / og.occupancyGridTotal)
-    plt.matshow(map, cmap='gray', extent=[og.mapXLim[0], og.mapXLim[1], og.mapYLim[1], og.mapYLim[0]])
-    plt.show()
-    map = map < 0.5
-    plt.matshow(map, cmap='gray', extent=[og.mapXLim[0], og.mapXLim[1], og.mapYLim[1], og.mapYLim[0]])
-    plt.show()
+        og.updateOccupancyGrid(sensorData[key])
+    og.plotOccupancyGrid([-12, 20], [-23.5, 7])
+
 if __name__ == '__main__':
     main()
