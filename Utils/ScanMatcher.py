@@ -12,48 +12,47 @@ class ScanMatcher:
         self.scanSigmaInNumGrid = scanSigmaInNumGrid
 
     def matchScan(self, reading):
+        """Iteratively find the best dx, dy and dtheta"""
         estimatedX, estimatedY, estimatedTheta, rMeasure = reading['x'], reading['y'], reading['theta'], reading['range']
         rMeasure = np.asarray(rMeasure)
         xRangeList, yRangeList, extractedOG = self.extractLocalOG(estimatedX, estimatedY)
         probOG = gaussian_filter(extractedOG, sigma=self.scanSigmaInNumGrid)
-        #plt.imshow(probOG)
-        #plt.show()
         rads = np.linspace(estimatedTheta - self.og.lidarFOV / 2, estimatedTheta + self.og.lidarFOV / 2,
                            num=self.og.numSamplesPerRev)
         range_idx = rMeasure < self.og.lidarMaxRange
-        rMeasure = rMeasure[range_idx]
+        rMeasureInRange = rMeasure[range_idx]
         rads = rads[range_idx]
-        px = estimatedX + np.cos(rads) * rMeasure
-        py = estimatedY + np.sin(rads) * rMeasure
+        px = estimatedX + np.cos(rads) * rMeasureInRange
+        py = estimatedY + np.sin(rads) * rMeasureInRange
         xMovingRange = np.arange(-self.searchRadius, self.searchRadius + self.og.unitGridSize, self.og.unitGridSize).reshape(-1, 1)
         yMovingRange = np.arange(-self.searchRadius, self.searchRadius + self.og.unitGridSize, self.og.unitGridSize).reshape(-1, 1)
         xv, yv = np.meshgrid(xMovingRange, yMovingRange)
         xv = xv.reshape((xv.shape[0], xv.shape[1], 1))
         yv = yv.reshape((yv.shape[0], yv.shape[1], 1))
         maxMatch = 0
-        for theta in np.arange(estimatedTheta - self.searchHalfRad, estimatedTheta + self.searchHalfRad + self.og.angularStep, self.og.angularStep):
+        for theta in np.arange(-self.searchHalfRad, self.searchHalfRad + self.og.angularStep, self.og.angularStep):
             rotatedPx, rotatedPy = self.rotate((estimatedX, estimatedY), (px, py), theta)
             rotatedPx = rotatedPx.reshape(1, 1, -1)
             rotatedPy = rotatedPy.reshape(1, 1, -1)
             rotatedPx = rotatedPx + xv
             rotatedPy = rotatedPy + yv
             rotatedPxIdx, rotatedPyIdx = self.pxyToExtractedOGIdx(rotatedPx, rotatedPy, xRangeList, yRangeList)
-
-            convResult = probOG[rotatedPxIdx, rotatedPyIdx]
-            convResultMax = np.max(convResult, axis=2)
-            if convResultMax.max() > maxMatch:
-                maxMatch = convResultMax.max()
-                maxIdx = np.unravel_index(convResultMax.argmax(), convResultMax.shape)
-                maxTheta = theta
+            convResult = probOG[rotatedPyIdx, rotatedPxIdx]
+            convResultSum = np.sum(convResult, axis=2)
+            if convResultSum.max() > maxMatch:
+                maxMatch = convResultSum.max()
+                maxIdx = np.unravel_index(convResultSum.argmax(), convResultSum.shape)
+                dTheta = theta
         dx = xMovingRange[maxIdx[1]]
         dy = yMovingRange[maxIdx[0]]
-        matchedPx, matchedPy = self.rotate((estimatedX, estimatedY), (px, py), maxTheta)
-        matchedPx = matchedPx + dx
-        matchedPy = matchedPy + dy
-        plt.scatter(matchedPx, matchedPy, c='r', s=35)
-        self.og.plotOccupancyGrid()
-        plt.show()
-
+        matchedReading = {"x": estimatedX + dx, "y":estimatedY + dy, "theta": estimatedTheta + dTheta, "range": rMeasure}
+        return matchedReading
+        # matchedPx, matchedPy = self.rotate((estimatedX, estimatedY), (px, py), dTheta)
+        # matchedPx = matchedPx + dx
+        # matchedPy = matchedPy + dy
+        # plt.imshow(extractedOG)
+        # plt.scatter(pxx, pyy, c ='r', s=3)
+        # plt.show()
 
     def rotate(self, origin, point, angle):
         """
@@ -78,35 +77,45 @@ class ScanMatcher:
         yRangeList = [estimatedY - maxScanRadius, estimatedY + maxScanRadius]
         self.og.checkAndExapndOG(xRangeList, yRangeList)
         xIdxList, yIdxList = self.og.convertRealXYToMapIdx(xRangeList, yRangeList)
-
-        return xRangeList, yRangeList, self.og.occupancyGridVisited[yIdxList[0]: yIdxList[1], xIdxList[0]:xIdxList[1]] / \
+        extractedOg = self.og.occupancyGridVisited[yIdxList[0]: yIdxList[1], xIdxList[0]:xIdxList[1]] / \
             self.og.occupancyGridTotal[yIdxList[0]: yIdxList[1], xIdxList[0]:xIdxList[1]]
-
+        extractedOg[extractedOg > 0.5] = 1
+        extractedOg[extractedOg <= 0.5] = 0
+        return xRangeList, yRangeList, extractedOg
 
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
-    scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid = 0.5, 0.35, 2# 0.5m and 20deg
+    scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid = 0.5, 0.35, 5# 0.5m and 20deg
     wallThickness = 5 * unitGridSize
-    jsonFile = "../DataSet/PreprocessedData/intel_corrected_log"
+    jsonFile = "../DataSet/PreprocessedData/intel_gfs"
     with open(jsonFile, 'r') as f:
         input = json.load(f)
         sensorData = input['map']
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
-    spokesStartIdx = int(0) # theta= 0 is x direction. spokes=0 is y direction, the first ray of lidar scan direction. spokes increase clockwise
+    spokesStartIdx = int(0) # theta= 0 is x direction. spokes=0 is -y direction, the first ray of lidar scan direction. spokes increase counter-clockwise
     og = OccupancyGrid(initMapXLength, initMapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness, spokesStartIdx)
     sm = ScanMatcher(og, scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid)
     count = 0
     plt.figure(figsize=(19.20, 19.20))
     for key in sorted(sensorData.keys()):
+
         count += 1
-        og.updateOccupancyGrid(sensorData[key])
-        sm.matchScan(sensorData[key])
-    map = np.flipud(1 - og.occupancyGridVisited / og.occupancyGridTotal)
-    plt.matshow(map, cmap='gray', extent=[og.mapXLim[0], og.mapXLim[1], og.mapYLim[1], og.mapYLim[0]])
-    plt.show()
-    map = map < 0.5
-    plt.matshow(map, cmap='gray', extent=[og.mapXLim[0], og.mapXLim[1], og.mapYLim[1], og.mapYLim[0]])
-    plt.show()
+        if count == 1:
+            og.updateOccupancyGrid(sensorData[key])
+            previousMatchedReading = sensorData[key]
+            previousRawReading = sensorData[key]
+
+        currentRawReading = sensorData[key]
+        estimatedX = previousMatchedReading['x'] + currentRawReading['x'] - previousRawReading['x']
+        estimatedY = previousMatchedReading['y'] + currentRawReading['y'] - previousRawReading['y']
+        estimatedTheta = previousMatchedReading['theta'] + currentRawReading['theta'] - previousRawReading['theta']
+        estimatedReading = {'x': estimatedX, 'y': estimatedY, 'theta': estimatedTheta, 'range': sensorData[key]['range']}
+
+        matchedReading = sm.matchScan(estimatedReading)
+        og.updateOccupancyGrid(matchedReading)
+        og.plotOccupancyGrid(plotThreshold=False)
+        previousMatchedReading = matchedReading
+        previousRawReading = sensorData[key]
 
 if __name__ == '__main__':
     main()

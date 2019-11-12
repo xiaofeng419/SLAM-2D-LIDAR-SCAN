@@ -142,7 +142,7 @@ class OccupancyGrid:
             self.occupancyGridVisited[yIdx, xIdx] += 1
             self.occupancyGridTotal[yIdx, xIdx] += 1
 
-    def plotOccupancyGrid(self, xRange = None, yRange= None):
+    def plotOccupancyGrid(self, xRange = None, yRange= None, plotThreshold = True):
         if xRange is None:
             xRange = self.mapXLim
         if yRange is None:
@@ -153,9 +153,10 @@ class OccupancyGrid:
         ogMap = np.flipud(1 - ogMap)
         plt.matshow(ogMap, cmap='gray', extent=[xRange[0], xRange[1], yRange[0], yRange[1]])
         plt.show()
-        ogMap = ogMap >= 0.5
-        plt.matshow(ogMap, cmap='gray', extent=[xRange[0], xRange[1], yRange[0], yRange[1]])
-        plt.show()
+        if plotThreshold:
+            ogMap = ogMap >= 0.5
+            plt.matshow(ogMap, cmap='gray', extent=[xRange[0], xRange[1], yRange[0], yRange[1]])
+            plt.show()
 
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
