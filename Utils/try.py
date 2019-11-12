@@ -10,8 +10,9 @@ c = np.asarray([1, 5, 8])
 c = c.reshape(3,1)
 b = a[a > c]
 
-aa = np.asarray([0, 0,0.0,0,0,1,0,0,0,0,0,0,0])
+aa = np.zeros((13,13))
+aa[6,:] = 1
 
-bb = gaussian_filter(aa, sigma=3)
+bb = gaussian_filter(aa, sigma=5)
 cc = np.gradient(bb)
 bbb = 1

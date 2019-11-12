@@ -17,6 +17,8 @@ class ScanMatcher:
         rMeasure = np.asarray(rMeasure)
         xRangeList, yRangeList, extractedOG = self.extractLocalOG(estimatedX, estimatedY)
         probOG = gaussian_filter(extractedOG, sigma=self.scanSigmaInNumGrid)
+        maxCap = 1 / np.sqrt(2 * np.pi * self.scanSigmaInNumGrid**2)
+        probOG[probOG > maxCap] = maxCap
         rads = np.linspace(estimatedTheta - self.og.lidarFOV / 2, estimatedTheta + self.og.lidarFOV / 2,
                            num=self.og.numSamplesPerRev)
         range_idx = rMeasure < self.og.lidarMaxRange
@@ -24,8 +26,8 @@ class ScanMatcher:
         rads = rads[range_idx]
         px = estimatedX + np.cos(rads) * rMeasureInRange
         py = estimatedY + np.sin(rads) * rMeasureInRange
-        xMovingRange = np.arange(-self.searchRadius, self.searchRadius + self.og.unitGridSize, self.og.unitGridSize).reshape(-1, 1)
-        yMovingRange = np.arange(-self.searchRadius, self.searchRadius + self.og.unitGridSize, self.og.unitGridSize).reshape(-1, 1)
+        xMovingRange = np.arange(-self.searchRadius, self.searchRadius + self.og.unitGridSize, self.og.unitGridSize)
+        yMovingRange = np.arange(-self.searchRadius, self.searchRadius + self.og.unitGridSize, self.og.unitGridSize)
         xv, yv = np.meshgrid(xMovingRange, yMovingRange)
         xv = xv.reshape((xv.shape[0], xv.shape[1], 1))
         yv = yv.reshape((yv.shape[0], yv.shape[1], 1))
@@ -45,14 +47,17 @@ class ScanMatcher:
                 dTheta = theta
         dx = xMovingRange[maxIdx[1]]
         dy = yMovingRange[maxIdx[0]]
-        matchedReading = {"x": estimatedX + dx, "y":estimatedY + dy, "theta": estimatedTheta + dTheta, "range": rMeasure}
+        matchedReading = {"x": estimatedX + dx, "y": estimatedY + dy, "theta": estimatedTheta + dTheta, "range": rMeasure}
+
+        plt.figure(figsize=(19.20, 19.20))
+        matchedPx, matchedPy = self.rotate((estimatedX, estimatedY), (px, py), dTheta)
+        matchedPx = matchedPx + dx
+        matchedPy = matchedPy + dy
+        plt.imshow(extractedOG)
+        pxIdx, pyIdx = self.pxyToExtractedOGIdx(matchedPx, matchedPy, xRangeList, yRangeList)
+        plt.scatter(pxIdx, pyIdx, c='r', s=1)
+        plt.show()
         return matchedReading
-        # matchedPx, matchedPy = self.rotate((estimatedX, estimatedY), (px, py), dTheta)
-        # matchedPx = matchedPx + dx
-        # matchedPy = matchedPy + dy
-        # plt.imshow(extractedOG)
-        # plt.scatter(pxx, pyy, c ='r', s=3)
-        # plt.show()
 
     def rotate(self, origin, point, angle):
         """
@@ -113,9 +118,11 @@ def main():
 
         matchedReading = sm.matchScan(estimatedReading)
         og.updateOccupancyGrid(matchedReading)
-        og.plotOccupancyGrid(plotThreshold=False)
+        #og.plotOccupancyGrid(plotThreshold=False)
         previousMatchedReading = matchedReading
         previousRawReading = sensorData[key]
+        print(count)
+    og.plotOccupancyGrid(plotThreshold=False)
 
 if __name__ == '__main__':
     main()
