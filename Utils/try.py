@@ -6,13 +6,9 @@ a = np.arange(9)
 
 a = a.reshape(3,3)
 print(a)
-c = np.asarray([1, 5, 8])
-c = c.reshape(3,1)
-b = a[a > c]
 
-aa = np.zeros((13,13))
-aa[6,:] = 1
+xx = np.array(([0,1], [1,2]))
+yy = np.array(([1,2], [1,1]))
 
-bb = gaussian_filter(aa, sigma=5)
-cc = np.gradient(bb)
-bbb = 1
+a[xx, yy] = 10
+print (a)
