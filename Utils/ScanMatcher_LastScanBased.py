@@ -21,27 +21,12 @@ class ScanMatcher:
         searchSpace = np.zeros((idxEndY + 1, idxEndX + 1))
         lastScanIdx = self.convertXYToSearchSpaceIdx(self.lastScan[0], self.lastScan[1], xRangeList[0], yRangeList[0], unitLength)
         searchSpace[lastScanIdx[1], lastScanIdx[0]] = 1
-        probSP = self.generateProbSearchSpace(lastScanIdx, searchSpace, sigma)
+        probSP = self.generateProbSearchSpace(searchSpace, sigma)
         return xRangeList, yRangeList, probSP
 
-    def generateGaussianKernel(self, sigma):
-        gaussianKernal = np.zeros((8 * int(sigma) + 1, 8 * int(sigma) + 1))
-        gaussianKernal[4 * int(sigma), 4 * int(sigma)] = 1
-        gaussianKernal = gaussian_filter(gaussianKernal, sigma=sigma)
-        return gaussianKernal
-
-    def generateProbSearchSpace(self, lastScanIdx, searchSpace, sigma):
-        gaussianKernal = self.generateGaussianKernel(sigma)
-        uniqueLastScanIdx = np.unique(np.column_stack((lastScanIdx[0], lastScanIdx[1])), axis=0) # [px, py]
-        yy = np.arange(0, gaussianKernal.shape[0]) - int(gaussianKernal.shape[0] / 2)
-        xx = np.arange(0, gaussianKernal.shape[1]) - int(gaussianKernal.shape[0] / 2)
-        gaussianKernelXIdx, gaussianKernelYIdx = np.meshgrid(xx, yy)
-        for idx in uniqueLastScanIdx:
-            rowIdx = gaussianKernelYIdx + idx[1]
-            colIdx = gaussianKernelXIdx + idx[0]
-            searchSpace[rowIdx, colIdx] = searchSpace[rowIdx, colIdx] + gaussianKernal
+    def generateProbSearchSpace(self, searchSpace, sigma):
+        probSP = gaussian_filter(searchSpace, sigma=sigma)
         maxCap = 1 / (2 * np.pi * sigma ** 2)
-        probSP = searchSpace
         probSP[probSP > maxCap] = maxCap
         probSP = probSP / maxCap
         return probSP
@@ -59,16 +44,17 @@ class ScanMatcher:
         coarseSigma = self.scanSigmaInNumGrid / self.coarseFactor
         xRangeList, yRangeList, probSP = self.frameSearchSpace(estimatedX, estimatedY, courseSearchStep, coarseSigma)
         matchedPx, matchedPy, matchedReading = self.searchToMatch(
-            probSP, estimatedX, estimatedY, estimatedTheta, rMeasure, xRangeList, yRangeList, self.searchRadius, courseSearchStep)
+            probSP, estimatedX, estimatedY, estimatedTheta, rMeasure, xRangeList, yRangeList, self.searchRadius, self.searchHalfRad, courseSearchStep)
         #########   For Debug Only  #############
         #self.plotMatchOverlay(probSP, matchedPx, matchedPy, xRangeList, yRangeList, courseSearchStep)
         #########################################
         # Fine Search
         fineSearchStep = self.og.unitGridSize
         fineSigma = self.scanSigmaInNumGrid
+        fineSearchHalfRad = self.searchHalfRad
         xRangeList, yRangeList, probSP = self.frameSearchSpace(matchedReading['x'], matchedReading['y'], fineSearchStep, fineSigma)
         matchedPx, matchedPy, matchedReading = self.searchToMatch(
-            probSP, matchedReading['x'], matchedReading['y'], matchedReading['theta'], matchedReading['range'], xRangeList, yRangeList, courseSearchStep, fineSearchStep)
+            probSP, matchedReading['x'], matchedReading['y'], matchedReading['theta'], matchedReading['range'], xRangeList, yRangeList, courseSearchStep, fineSearchHalfRad, fineSearchStep)
         self.lastScan = [matchedPx, matchedPy]
         #########   For Debug Only  #############
         #self.plotMatchOverlay(probSP, matchedPx, matchedPy, xRangeList, yRangeList, fineSearchStep)
@@ -85,7 +71,7 @@ class ScanMatcher:
         py = estimatedY + np.sin(rads) * rMeasureInRange
         return px, py
 
-    def searchToMatch(self, probSP, estimatedX, estimatedY, estimatedTheta, rMeasure, xRangeList, yRangeList, searchRadius, unitLength):
+    def searchToMatch(self, probSP, estimatedX, estimatedY, estimatedTheta, rMeasure, xRangeList, yRangeList, searchRadius, searchHalfRad, unitLength):
         px, py = self.covertMeasureToXY(estimatedX, estimatedY, estimatedTheta, rMeasure)
         numCellOfSearchRadius  = int(searchRadius / unitLength)
         xMovingRange = np.arange(-numCellOfSearchRadius, numCellOfSearchRadius + 1)
@@ -94,7 +80,7 @@ class ScanMatcher:
         xv = xv.reshape((xv.shape[0], xv.shape[1], 1))
         yv = yv.reshape((yv.shape[0], yv.shape[1], 1))
         maxMatchScore, maxIdx = 0, None
-        for theta in np.arange(-self.searchHalfRad, self.searchHalfRad + self.og.angularStep, self.og.angularStep):
+        for theta in np.arange(-searchHalfRad, searchHalfRad + self.og.angularStep, self.og.angularStep):
             rotatedPx, rotatedPy = self.rotate((estimatedX, estimatedY), (px, py), theta)
             rotatedPxIdx, rotatedPyIdx = self.convertXYToSearchSpaceIdx(rotatedPx, rotatedPy, xRangeList[0], yRangeList[0], unitLength)
             uniqueRotatedPxPyIdx = np.unique(np.column_stack((rotatedPxIdx, rotatedPyIdx)), axis=0)
@@ -114,7 +100,7 @@ class ScanMatcher:
                 dTheta = theta
                 #########   For Debug Only  #############
                 # matchedPx, matchedPy = self.rotate((estimatedX, estimatedY), (px, py), dTheta)
-                # dx, dy = xMovingRange[maxIdx[1]]* self.og.unitGridSize, yMovingRange[maxIdx[0]]* self.og.unitGridSize
+                # dx, dy = xMovingRange[maxIdx[1]] * unitLength, yMovingRange[maxIdx[0]] * unitLength
                 # self.plotMatchOverlay(probSP, matchedPx + dx, matchedPy + dy, xRangeList, yRangeList, unitLength)
                 #########################################
         if maxIdx is None:
@@ -181,8 +167,6 @@ def main():
         previousMatchedReading = matchedReading
         previousRawReading = sensorData[key]
         print(count)
-        # if count == 100:
-        #     break
     og.plotOccupancyGrid(plotThreshold=False)
 
 if __name__ == '__main__':

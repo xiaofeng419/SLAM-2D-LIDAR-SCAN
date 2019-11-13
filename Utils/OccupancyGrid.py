@@ -161,7 +161,7 @@ class OccupancyGrid:
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
     wallThickness = 5 * unitGridSize
-    jsonFile = "../DataSet/PreprocessedData/intel_gfs"
+    jsonFile = "../DataSet/PreprocessedData/intel_corrected_log"
     with open(jsonFile, 'r') as f:
         input = json.load(f)
         sensorData = input['map']
