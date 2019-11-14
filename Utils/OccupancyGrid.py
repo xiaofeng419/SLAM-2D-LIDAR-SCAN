@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 class OccupancyGrid:
     def __init__(self, mapXLength, mapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness, spokesStartIdx):
@@ -151,12 +152,19 @@ class OccupancyGrid:
         xIdx, yIdx = self.convertRealXYToMapIdx(xRange, yRange)
         ogMap = ogMap[yIdx[0]: yIdx[1], xIdx[0]: xIdx[1]]
         ogMap = np.flipud(1 - ogMap)
-        plt.matshow(ogMap, cmap='gray', extent=[xRange[0], xRange[1], yRange[0], yRange[1]])
+        plt.imshow(ogMap, cmap='gray', extent=[xRange[0], xRange[1], yRange[0], yRange[1]])
         plt.show()
         if plotThreshold:
             ogMap = ogMap >= 0.5
             plt.matshow(ogMap, cmap='gray', extent=[xRange[0], xRange[1], yRange[0], yRange[1]])
             plt.show()
+
+def updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count):
+    x, y, theta, range = matchedReading['x'], matchedReading['y'], matchedReading['theta'], matchedReading['range']
+    xTrajectory.append(x)
+    yTrajectory.append(y)
+    if count % 1 == 0:
+        plt.scatter(x, y, color=next(colors), s=35)
 
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
@@ -170,9 +178,15 @@ def main():
     og = OccupancyGrid(initMapXLength, initMapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness, spokesStartIdx)
     count = 0
     plt.figure(figsize=(19.20, 19.20))
+    xTrajectory, yTrajectory = [], []
+    colors = iter(cm.rainbow(np.linspace(1, 0, len(sensorData) + 1)))
     for key in sorted(sensorData.keys()):
         count += 1
         og.updateOccupancyGrid(sensorData[key])
+        updateTrajectoryPlot(sensorData[key], xTrajectory, yTrajectory, colors, count)
+    plt.scatter(xTrajectory[0], yTrajectory[0], color='r', s=500)
+    plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
+    plt.plot(xTrajectory, yTrajectory)
     #og.plotOccupancyGrid([-12, 20], [-23.5, 7])
     og.plotOccupancyGrid()
 

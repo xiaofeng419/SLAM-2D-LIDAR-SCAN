@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 from Utils.OccupancyGrid import OccupancyGrid
 from scipy.ndimage import gaussian_filter
 
@@ -136,6 +137,44 @@ class ScanMatcher:
         yIdx = (((py - beginY) / unitLength)).astype(int)
         return xIdx, yIdx
 
+def updateEstimatedPose(currentRawReading, previousMatchedReading, previousRawReading):
+    estimatedX = previousMatchedReading['x'] + currentRawReading['x'] - previousRawReading['x']
+    estimatedY = previousMatchedReading['y'] + currentRawReading['y'] - previousRawReading['y']
+    estimatedTheta = previousMatchedReading['theta'] + currentRawReading['theta'] - previousRawReading['theta']
+    estimatedReading = {'x': estimatedX, 'y': estimatedY, 'theta': estimatedTheta, 'range': currentRawReading['range']}
+    return estimatedReading
+
+def updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count):
+    x, y, theta, range = matchedReading['x'], matchedReading['y'], matchedReading['theta'], matchedReading['range']
+    xTrajectory.append(x)
+    yTrajectory.append(y)
+    if count % 1 == 0:
+        plt.scatter(x, y, color=next(colors), s=35)
+
+def processSensorData(sensorData, og, sm):
+    count = 0
+    plt.figure(figsize=(19.20, 19.20))
+    colors = iter(cm.rainbow(np.linspace(1, 0, len(sensorData) + 1)))
+    xTrajectory, yTrajectory = [], []
+    for key in sorted(sensorData.keys()):
+        count += 1
+        if count == 1:
+            og.updateOccupancyGrid(sensorData[key])
+            previousMatchedReading = sensorData[key]
+            previousRawReading = sensorData[key]
+            plt.scatter(sensorData[key]['x'], sensorData[key]['y'], c='r', s=500)
+        estimatedReading = updateEstimatedPose(sensorData[key], previousMatchedReading, previousRawReading)
+        matchedReading = sm.matchScan(estimatedReading)
+        og.updateOccupancyGrid(matchedReading)
+        # og.plotOccupancyGrid(plotThreshold=False)
+        previousMatchedReading = matchedReading
+        previousRawReading = sensorData[key]
+        updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count)
+        print(count)
+    plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
+    plt.plot(xTrajectory, yTrajectory)
+    og.plotOccupancyGrid(plotThreshold=False)
+
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
     scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, coarseFactor = 2.2, 0.35, 2, 10 # 0.35 is 20deg
@@ -148,26 +187,7 @@ def main():
     spokesStartIdx = int(0) # theta= 0 is x direction. spokes=0 is -y direction, the first ray of lidar scan direction. spokes increase counter-clockwise
     og = OccupancyGrid(initMapXLength, initMapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness, spokesStartIdx)
     sm = ScanMatcher(og, scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, coarseFactor)
-    count = 0
-    plt.figure(figsize=(19.20, 19.20))
-    for key in sorted(sensorData.keys()):
-        count += 1
-        if count == 1:
-            og.updateOccupancyGrid(sensorData[key])
-            previousMatchedReading = sensorData[key]
-            previousRawReading = sensorData[key]
-        currentRawReading = sensorData[key]
-        estimatedX = previousMatchedReading['x'] + currentRawReading['x'] - previousRawReading['x']
-        estimatedY = previousMatchedReading['y'] + currentRawReading['y'] - previousRawReading['y']
-        estimatedTheta = previousMatchedReading['theta'] + currentRawReading['theta'] - previousRawReading['theta']
-        estimatedReading = {'x': estimatedX, 'y': estimatedY, 'theta': estimatedTheta, 'range': sensorData[key]['range']}
-        matchedReading = sm.matchScan(estimatedReading)
-        og.updateOccupancyGrid(matchedReading)
-        #og.plotOccupancyGrid(plotThreshold=False)
-        previousMatchedReading = matchedReading
-        previousRawReading = sensorData[key]
-        print(count)
-    og.plotOccupancyGrid(plotThreshold=False)
+    processSensorData(sensorData, og, sm)
 
 if __name__ == '__main__':
     main()
