@@ -171,6 +171,8 @@ def processSensorData(sensorData, og, sm):
         previousRawReading = sensorData[key]
         updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count)
         print(count)
+        if count == 100:
+            break
     plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
     plt.plot(xTrajectory, yTrajectory)
     og.plotOccupancyGrid(plotThreshold=False)
