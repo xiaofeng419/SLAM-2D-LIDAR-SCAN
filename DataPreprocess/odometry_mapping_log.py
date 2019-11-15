@@ -11,7 +11,7 @@ def updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count
         plt.scatter(x, y, color=next(colors), s=35)
 
 def main():
-    jsonFile = "../DataSet/PreprocessedData/intel_corrected_log"
+    jsonFile = "../DataSet/PreprocessedData/intel_gfs"
     with open(jsonFile, 'r') as f:
         input = json.load(f)
         map = input['map']
@@ -28,7 +28,7 @@ def main():
         x, y, theta, range = map[key]['x'], map[key]['y'], map[key]['theta'], map[key]['range']
         rads = np.linspace(theta - np.pi / 2, theta + np.pi / 2, num=numSamplesPerRev)
         range = np.asarray(range)
-        range_idx = range < 50
+        range_idx = range < 10
         range = range[range_idx]
         rads = rads[range_idx]
         px = x + np.cos(rads) * range
@@ -40,7 +40,7 @@ def main():
             startx, starty = x, y
         updateTrajectoryPlot(map[key], xx, yy, colors, count)
 
-    plt.scatter(startx, starty, c='g', s=500)
+    plt.scatter(startx, starty, c='r', s=500)
     plt.scatter(x, y, c='b', s=500)
     plt.plot(xx, yy)
     plt.show()

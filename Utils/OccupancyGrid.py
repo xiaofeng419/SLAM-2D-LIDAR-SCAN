@@ -184,14 +184,14 @@ def main():
         count += 1
         og.updateOccupancyGrid(sensorData[key])
         updateTrajectoryPlot(sensorData[key], xTrajectory, yTrajectory, colors, count)
-        if count == 100:
-            break
+        # if count == 100:
+        #     break
 
     plt.scatter(xTrajectory[0], yTrajectory[0], color='r', s=500)
     plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
     plt.plot(xTrajectory, yTrajectory)
-    #og.plotOccupancyGrid([-12, 20], [-23.5, 7])
-    og.plotOccupancyGrid()
+    og.plotOccupancyGrid([-12, 20], [-23.5, 7])
+    #og.plotOccupancyGrid()
 
 if __name__ == '__main__':
     main()

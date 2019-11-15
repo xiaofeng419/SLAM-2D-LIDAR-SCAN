@@ -32,7 +32,7 @@ class ScanMatcher:
         probSP = probSP / maxCap
         return probSP
 
-    def matchScan(self, reading):
+    def matchScan(self, reading, count):
         """Iteratively find the best dx, dy and dtheta"""
         estimatedX, estimatedY, estimatedTheta, rMeasure = reading['x'], reading['y'], reading['theta'], reading['range']
         rMeasure = np.asarray(rMeasure)
@@ -47,7 +47,7 @@ class ScanMatcher:
         matchedPx, matchedPy, matchedReading = self.searchToMatch(
             probSP, estimatedX, estimatedY, estimatedTheta, rMeasure, xRangeList, yRangeList, self.searchRadius, self.searchHalfRad, courseSearchStep)
         #########   For Debug Only  #############
-        #self.plotMatchOverlay(probSP, matchedPx, matchedPy, xRangeList, yRangeList, courseSearchStep)
+        #self.plotMatchOverlay(probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, courseSearchStep)
         #########################################
         # Fine Search
         fineSearchStep = self.og.unitGridSize
@@ -58,7 +58,8 @@ class ScanMatcher:
             probSP, matchedReading['x'], matchedReading['y'], matchedReading['theta'], matchedReading['range'], xRangeList, yRangeList, courseSearchStep, fineSearchHalfRad, fineSearchStep)
         self.lastScan = [matchedPx, matchedPy]
         #########   For Debug Only  #############
-        #self.plotMatchOverlay(probSP, matchedPx, matchedPy, xRangeList, yRangeList, fineSearchStep)
+        if count > 55:
+            self.plotMatchOverlay(probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, fineSearchStep)
         #########################################
         return matchedReading
 
@@ -113,11 +114,14 @@ class ScanMatcher:
         matchedPx, matchedPy = self.rotate((estimatedX, estimatedY), (px, py), dTheta)
         return matchedPx + dx, matchedPy + dy, matchedReading
 
-    def plotMatchOverlay(self, probSP, matchedPx, matchedPy, xRangeList, yRangeList, unitLength):
+    def plotMatchOverlay(self, probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, unitLength):
         plt.figure(figsize=(19.20, 19.20))
-        plt.imshow(probSP)
+        plt.imshow(probSP, origin='lower')
         pxIdx, pyIdx = self.convertXYToSearchSpaceIdx(matchedPx, matchedPy, xRangeList[0], yRangeList[0], unitLength)
-        plt.scatter(pxIdx, pyIdx, c='r', s=1)
+        plt.scatter(pxIdx, pyIdx, c='r', s=5)
+        poseXIdx, poseYIdx = self.convertXYToSearchSpaceIdx(matchedReading['x'], matchedReading['y'], xRangeList[0],
+                                                            yRangeList[0], unitLength)
+        plt.scatter(poseXIdx, poseYIdx, color='blue', s=50)
         plt.show()
 
     def rotate(self, origin, point, angle):
@@ -151,7 +155,7 @@ def updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count
     if count % 1 == 0:
         plt.scatter(x, y, color=next(colors), s=35)
 
-def processSensorData(sensorData, og, sm):
+def processSensorData(sensorData, og, sm, plotTrajectory = True):
     count = 0
     plt.figure(figsize=(19.20, 19.20))
     colors = iter(cm.rainbow(np.linspace(1, 0, len(sensorData) + 1)))
@@ -162,20 +166,21 @@ def processSensorData(sensorData, og, sm):
             og.updateOccupancyGrid(sensorData[key])
             previousMatchedReading = sensorData[key]
             previousRawReading = sensorData[key]
-            plt.scatter(sensorData[key]['x'], sensorData[key]['y'], c='r', s=500)
         estimatedReading = updateEstimatedPose(sensorData[key], previousMatchedReading, previousRawReading)
-        matchedReading = sm.matchScan(estimatedReading)
+        matchedReading = sm.matchScan(estimatedReading, count)
         og.updateOccupancyGrid(matchedReading)
         # og.plotOccupancyGrid(plotThreshold=False)
         previousMatchedReading = matchedReading
         previousRawReading = sensorData[key]
-        updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count)
+        if plotTrajectory:
+            updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count)
         print(count)
-        if count == 100:
-            break
+        # if count == 100:
+        #     break
+    plt.scatter(xTrajectory[0], yTrajectory[0], color='r', s=500)
     plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
     plt.plot(xTrajectory, yTrajectory)
-    og.plotOccupancyGrid(plotThreshold=False)
+    og.plotOccupancyGrid(plotThreshold=True)
 
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
@@ -189,7 +194,7 @@ def main():
     spokesStartIdx = int(0) # theta= 0 is x direction. spokes=0 is -y direction, the first ray of lidar scan direction. spokes increase counter-clockwise
     og = OccupancyGrid(initMapXLength, initMapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness, spokesStartIdx)
     sm = ScanMatcher(og, scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, coarseFactor)
-    processSensorData(sensorData, og, sm)
+    processSensorData(sensorData, og, sm, plotTrajectory=False)
 
 if __name__ == '__main__':
     main()
