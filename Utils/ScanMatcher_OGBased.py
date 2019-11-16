@@ -59,8 +59,8 @@ class ScanMatcher:
         matchedPx, matchedPy, matchedReading = self.searchToMatch(
             probSP, estimatedX, estimatedY, estimatedTheta, rMeasure, xRangeList, yRangeList, self.searchRadius, self.searchHalfRad, courseSearchStep)
         #########   For Debug Only  #############
-        #if count > 39:
-        #    self.plotMatchOverlay(probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, courseSearchStep)
+        if count > 55:
+            self.plotMatchOverlay(probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, courseSearchStep)
         #########################################
         # Fine Search
         fineSearchStep = self.og.unitGridSize
@@ -71,7 +71,7 @@ class ScanMatcher:
             probSP, matchedReading['x'], matchedReading['y'], matchedReading['theta'], matchedReading['range'], xRangeList, yRangeList, courseSearchStep, fineSearchHalfRad, fineSearchStep)
         self.lastScan = [matchedPx, matchedPy]
         #########   For Debug Only  #############
-        if count > 57:
+        if count > 55:
             self.plotMatchOverlay(probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, fineSearchStep)
         #########################################
         return matchedReading
