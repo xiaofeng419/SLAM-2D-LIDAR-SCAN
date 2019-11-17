@@ -132,7 +132,10 @@ class OccupancyGrid:
             xAtSpokeDir = self.radByX[idx]
             yAtSpokeDir = self.radByY[idx]
             rAtSpokeDir = self.radByR[idx]
-            emptyIdx = np.argwhere(rAtSpokeDir < rMeasure[i] - self.wallThickness / 2)
+            if rMeasure[i] < self.lidarMaxRange:
+                emptyIdx = np.argwhere(rAtSpokeDir < rMeasure[i] - self.wallThickness / 2)
+            else:
+                emptyIdx = []
             occupiedIdx = np.argwhere((rAtSpokeDir > rMeasure[i] - self.wallThickness / 2) & (rAtSpokeDir < rMeasure[i] + self.wallThickness / 2))
             self.checkAndExapndOG(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx])
             if len(occupiedIdx) == 0:

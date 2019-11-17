@@ -11,7 +11,6 @@ class ScanMatcher:
         self.searchHalfRad = searchHalfRad
         self.og = og
         self.scanSigmaInNumGrid = scanSigmaInNumGrid
-        self.lastScan = [] # 2D point clouds [px, py]
         self.coarseFactor = coarseFactor
 
     def frameSearchSpace(self, estimatedX, estimatedY, unitLength, sigma):
@@ -32,8 +31,6 @@ class ScanMatcher:
         ogX, ogY = ogX[ogMap], ogY[ogMap]
         ogIdx = self.convertXYToSearchSpaceIdx(ogX, ogY, xRangeList[0], yRangeList[0], unitLength)
         searchSpace[ogIdx[1], ogIdx[0]] = 1
-        #lastScanIdx = self.convertXYToSearchSpaceIdx(self.lastScan[0], self.lastScan[1], xRangeList[0], yRangeList[0], unitLength)
-        #searchSpace[lastScanIdx[1], lastScanIdx[0]] = 1
         probSP = self.generateProbSearchSpace(searchSpace, sigma)
         return xRangeList, yRangeList, probSP
 
@@ -48,9 +45,8 @@ class ScanMatcher:
         """Iteratively find the best dx, dy and dtheta"""
         estimatedX, estimatedY, estimatedTheta, rMeasure = reading['x'], reading['y'], reading['theta'], reading['range']
         rMeasure = np.asarray(rMeasure)
-        if self.lastScan == []:
+        if count == 1:
             px, py = self.covertMeasureToXY(estimatedX, estimatedY, estimatedTheta, rMeasure)
-            self.lastScan = [px, py]
             return reading
         # Coarse Search
         courseSearchStep = self.coarseFactor * self.og.unitGridSize  # make this even number of unitGridSize for performance
@@ -69,7 +65,6 @@ class ScanMatcher:
         xRangeList, yRangeList, probSP = self.frameSearchSpace(matchedReading['x'], matchedReading['y'], fineSearchStep, fineSigma)
         matchedPx, matchedPy, matchedReading = self.searchToMatch(
             probSP, matchedReading['x'], matchedReading['y'], matchedReading['theta'], matchedReading['range'], xRangeList, yRangeList, courseSearchStep, fineSearchHalfRad, fineSearchStep)
-        self.lastScan = [matchedPx, matchedPy]
         #########   For Debug Only  #############
         if count > 55:
             self.plotMatchOverlay(probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, fineSearchStep)
@@ -190,8 +185,9 @@ def processSensorData(sensorData, og, sm, plotTrajectory = True):
             break
         if plotTrajectory:
             updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count)
-    plt.scatter(xTrajectory[0], yTrajectory[0], color='r', s=500)
-    plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
+    if plotTrajectory:
+        plt.scatter(xTrajectory[0], yTrajectory[0], color='r', s=500)
+        plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
     plt.plot(xTrajectory, yTrajectory)
     og.plotOccupancyGrid(plotThreshold=False)
 
