@@ -55,7 +55,7 @@ class ScanMatcher:
         matchedPx, matchedPy, matchedReading = self.searchToMatch(
             probSP, estimatedX, estimatedY, estimatedTheta, rMeasure, xRangeList, yRangeList, self.searchRadius, self.searchHalfRad, courseSearchStep)
         #########   For Debug Only  #############
-        if count > 55:
+        if count > 65:
             self.plotMatchOverlay(probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, courseSearchStep)
         #########################################
         # Fine Search
@@ -87,7 +87,7 @@ class ScanMatcher:
         xMovingRange = np.arange(-numCellOfSearchRadius, numCellOfSearchRadius + 1)
         yMovingRange = np.arange(-numCellOfSearchRadius, numCellOfSearchRadius + 1)
         xv, yv = np.meshgrid(xMovingRange, yMovingRange)
-        #rv = (xv * unitLength)** 2 + (yv * unitLength) ** 2
+        rv = (xv * unitLength)** 2 + (yv * unitLength) ** 2
         xv = xv.reshape((xv.shape[0], xv.shape[1], 1))
         yv = yv.reshape((yv.shape[0], yv.shape[1], 1))
 
@@ -107,7 +107,7 @@ class ScanMatcher:
             rotatedPyIdx = rotatedPyIdx + yv
             convResult = probSP[rotatedPyIdx, rotatedPxIdx]
             convResultSum = np.sum(convResult, axis=2)
-            #convResultSum = convResultSum  - rv
+            convResultSum = convResultSum  - rv
             if convResultSum.max() > maxMatchScore:
                 maxMatchScore = convResultSum.max()
                 maxIdx = np.unravel_index(convResultSum.argmax(), convResultSum.shape)
