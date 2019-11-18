@@ -123,28 +123,39 @@ class OccupancyGrid:
             self.expandOccupancyGrid(expandDirection)
             expandDirection = self.checkMapToExpand(x, y)
 
-    def updateOccupancyGrid(self, reading):
+    def updateOccupancyGrid(self, reading, dTheta = 0, update=True):
         x, y, theta, rMeasure = reading['x'], reading['y'], reading['theta'], reading['range']
+        theta += dTheta
         rMeasure = np.asarray(rMeasure)
         spokesOffsetIdxByTheta = int(np.rint(theta / (2 * np.pi) * self.numSpokes))
+        emptyXList, emptyYList, occupiedXList, occupiedYList = [], [], [], []
         for i in range(self.numSamplesPerRev):
-            idx = int(np.rint((self.spokesStartIdx + spokesOffsetIdxByTheta + i) % self.numSpokes))
-            xAtSpokeDir = self.radByX[idx]
-            yAtSpokeDir = self.radByY[idx]
-            rAtSpokeDir = self.radByR[idx]
+            spokeIdx = int(np.rint((self.spokesStartIdx + spokesOffsetIdxByTheta + i) % self.numSpokes))
+            xAtSpokeDir = self.radByX[spokeIdx]
+            yAtSpokeDir = self.radByY[spokeIdx]
+            rAtSpokeDir = self.radByR[spokeIdx]
             if rMeasure[i] < self.lidarMaxRange:
                 emptyIdx = np.argwhere(rAtSpokeDir < rMeasure[i] - self.wallThickness / 2)
             else:
                 emptyIdx = []
-            occupiedIdx = np.argwhere((rAtSpokeDir > rMeasure[i] - self.wallThickness / 2) & (rAtSpokeDir < rMeasure[i] + self.wallThickness / 2))
-            self.checkAndExapndOG(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx])
-            if len(occupiedIdx) == 0:
-                continue
-            xIdx, yIdx = self.convertRealXYToMapIdx(x + xAtSpokeDir[emptyIdx], y + yAtSpokeDir[emptyIdx])
-            self.occupancyGridTotal[yIdx, xIdx] += 1
-            xIdx, yIdx = self.convertRealXYToMapIdx(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx])
-            self.occupancyGridVisited[yIdx, xIdx] += 1
-            self.occupancyGridTotal[yIdx, xIdx] += 1
+            occupiedIdx = np.argwhere(
+                (rAtSpokeDir > rMeasure[i] - self.wallThickness / 2) & (rAtSpokeDir < rMeasure[i] + self.wallThickness / 2))
+            xEmptyIdx, yEmptyIdx = self.convertRealXYToMapIdx(x + xAtSpokeDir[emptyIdx], y + yAtSpokeDir[emptyIdx])
+            xOccupiedIdx, yOccupiedIdx = self.convertRealXYToMapIdx(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx])
+            if update:
+                self.checkAndExapndOG(x + xAtSpokeDir[occupiedIdx], y + yAtSpokeDir[occupiedIdx])
+                if len(emptyIdx) != 0:
+                    self.occupancyGridTotal[yEmptyIdx, xEmptyIdx] += 1
+                if len(occupiedIdx) != 0:
+                    self.occupancyGridVisited[yOccupiedIdx, xOccupiedIdx] += 2
+                    self.occupancyGridTotal[yOccupiedIdx, xOccupiedIdx] += 2
+            else:
+                emptyXList.extend(x + xAtSpokeDir[emptyIdx])
+                emptyYList.extend(y + yAtSpokeDir[emptyIdx])
+                occupiedXList.extend(x + xAtSpokeDir[occupiedIdx])
+                occupiedYList.extend(y + yAtSpokeDir[occupiedIdx])
+        if not update:
+            return np.asarray(emptyXList), np.asarray(emptyYList), np.asarray(occupiedXList), np.asarray(occupiedYList)
 
     def plotOccupancyGrid(self, xRange = None, yRange= None, plotThreshold = True):
         if xRange is None:
@@ -171,7 +182,7 @@ def updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count
 
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
-    wallThickness = 5 * unitGridSize
+    wallThickness = 7 * unitGridSize
     jsonFile = "../DataSet/PreprocessedData/intel_corrected_log"
     with open(jsonFile, 'r') as f:
         input = json.load(f)
@@ -187,8 +198,8 @@ def main():
         count += 1
         og.updateOccupancyGrid(sensorData[key])
         updateTrajectoryPlot(sensorData[key], xTrajectory, yTrajectory, colors, count)
-        # if count == 100:
-        #     break
+        if count == 100:
+            break
 
     plt.scatter(xTrajectory[0], yTrajectory[0], color='r', s=500)
     plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
