@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from Utils.OccupancyGrid import OccupancyGrid
 from scipy.ndimage import gaussian_filter
-
+import math
 class ScanMatcher:
     def __init__(self, og, searchRadius, searchHalfRad, scanSigmaInNumGrid, coarseFactor):
         self.searchRadius = searchRadius
@@ -46,17 +46,23 @@ class ScanMatcher:
         estimatedX, estimatedY, estimatedTheta, rMeasure = reading['x'], reading['y'], reading['theta'], reading['range']
         rMeasure = np.asarray(rMeasure)
         if count == 1:
-            px, py = self.covertMeasureToXY(estimatedX, estimatedY, estimatedTheta, rMeasure)
             return reading
         # Coarse Search
         courseSearchStep = self.coarseFactor * self.og.unitGridSize  # make this even number of unitGridSize for performance
         coarseSigma = self.scanSigmaInNumGrid / self.coarseFactor
         xRangeList, yRangeList, probSP = self.frameSearchSpace(estimatedX, estimatedY, courseSearchStep, coarseSigma)
+
         matchedPx, matchedPy, matchedReading = self.searchToMatch(
             probSP, estimatedX, estimatedY, estimatedTheta, rMeasure, xRangeList, yRangeList, self.searchRadius, self.searchHalfRad, courseSearchStep)
         #########   For Debug Only  #############
-        if count > 65:
+        if count > 21:
             self.plotMatchOverlay(probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, courseSearchStep)
+            dr = math.sqrt((matchedReading['x'] - estimatedX)**2  + (matchedReading['y'] - estimatedY) **2)
+
+            px, py = self.covertMeasureToXY(estimatedX, estimatedY, estimatedTheta, rMeasure)
+            self.plotMatchOverlay(probSP, px, py, reading, xRangeList, yRangeList,
+                                  courseSearchStep)
+            print(dr)
         #########################################
         # Fine Search
         fineSearchStep = self.og.unitGridSize
@@ -65,6 +71,7 @@ class ScanMatcher:
         xRangeList, yRangeList, probSP = self.frameSearchSpace(matchedReading['x'], matchedReading['y'], fineSearchStep, fineSigma)
         matchedPx, matchedPy, matchedReading = self.searchToMatch(
             probSP, matchedReading['x'], matchedReading['y'], matchedReading['theta'], matchedReading['range'], xRangeList, yRangeList, courseSearchStep, fineSearchHalfRad, fineSearchStep)
+
         #########   For Debug Only  #############
         #if count > 55:
         #    self.plotMatchOverlay(probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, fineSearchStep)
@@ -90,7 +97,6 @@ class ScanMatcher:
         rv = (xv * unitLength)** 2 + (yv * unitLength) ** 2
         xv = xv.reshape((xv.shape[0], xv.shape[1], 1))
         yv = yv.reshape((yv.shape[0], yv.shape[1], 1))
-
 
         maxMatchScore, maxIdx = float("-inf"), None
         for theta in np.arange(-searchHalfRad, searchHalfRad + self.og.angularStep, self.og.angularStep):
