@@ -6,8 +6,29 @@ from Utils.OccupancyGrid import OccupancyGrid
 from scipy.ndimage import gaussian_filter
 import math
 
-def plotMove():
-    a = 1
+def plotMove(rawMinusGtMoveList, rawMoveList, gtMoveList):
+    EstGtMoveArray = np.asarray(rawMinusGtMoveList)
+    EstMoveSortedIdx = np.argsort(rawMoveList)
+    EstMoveSortedArray = np.sort(rawMoveList)
+    EstGtMoveSortedArray = EstGtMoveArray[EstMoveSortedIdx]
+    plt.scatter(EstMoveSortedArray, EstGtMoveSortedArray)
+    plt.show()
+    GtMoveArray = np.asarray(gtMoveList)
+    GtMoveSortedArray = GtMoveArray[EstMoveSortedIdx]
+    plt.plot(EstMoveSortedArray)
+    plt.plot(GtMoveSortedArray)
+    plt.show()
+
+def plotTheta(errorTheta1List, rawMoveList):
+    rawMoveSortedIdx = np.argsort(rawMoveList)
+    rawMoveSortedArray = np.sort(rawMoveList)
+    errorTheta1Array = np.asarray(errorTheta1List)
+    errorSortedTheta1Array = errorTheta1Array[rawMoveSortedIdx]
+    plt.scatter(rawMoveSortedArray, errorSortedTheta1Array)
+    plt.show()
+
+
+
 def main():
     jsonFile = "../DataSet/PreprocessedData/intel_gfs"
     with open(jsonFile, 'r') as f:
@@ -20,7 +41,8 @@ def main():
         gtData = input['map']
     count = 0
 
-    EstMoveList, GtMoveList, EstGtMoveList = [], [], []
+    rawMoveList, gtMoveList, rawMinusGtMoveList = [], [], []
+    errorTheta1List, errorTheta2List, errorTheta2AsDirList = [], [], []
     for key in sorted(sensorData.keys()):
         count += 1
         if count == 1:
@@ -29,30 +51,74 @@ def main():
             continue
         reading = sensorData[key]
         gtReading = gtData[key]
-        prevEstimatedX, prevEstimatedY, prevEstimatedTheta, prevRMeasure = prevReading['x'], prevReading['y'], prevReading['theta'], prevReading[
+        prevRawX, prevRawY, prevRawTheta, prevRawRMeasure = prevReading['x'], prevReading['y'], prevReading['theta'], prevReading[
             'range']
         prevGtX, prevGtY, prevGtTheta, prevGtMeasure = prevGtReading['x'], prevGtReading['y'], prevGtReading['theta'], prevGtReading['range']
-        estimatedX, estimatedY, estimatedTheta, rMeasure = reading['x'], reading['y'], reading['theta'], reading['range']
+        rawX, rawY, rawTheta, rMeasure = reading['x'], reading['y'], reading['theta'], reading['range']
         gtX, gtY, gtTheta, gtMeasure = gtReading['x'], gtReading['y'], gtReading['theta'], gtReading['range']
-        dEstimatedMove = math.sqrt((estimatedX - prevEstimatedX) ** 2 + (estimatedY - prevEstimatedY) ** 2)
-        dGtMove = math.sqrt((gtX - prevGtX) ** 2 + (gtY - prevGtY) ** 2)
-        EstMoveList.append(dEstimatedMove)
-        GtMoveList.append(dGtMove)
-        EstGtMoveList.append(dEstimatedMove - dGtMove)
+
+        # get move
+        rawXMove, rawYMove, gtXMove, gtYMove = rawX - prevRawX, rawY - prevRawY, gtX - prevGtX, gtY - prevGtY
+        rawMove = math.sqrt((rawX - prevRawX) ** 2 + (rawY - prevRawY) ** 2)
+        gtMove = math.sqrt((gtX - prevGtX) ** 2 + (gtY - prevGtY) ** 2)
+
+        if abs(rawMove) < 0.01:
+            continue
+
+        # get theta 1
+        ## raw thetaM
+        if rawY > 0:
+            rawThetaM = math.acos(rawXMove / rawMove)
+        else:
+            rawThetaM = -math.acos(rawXMove / rawMove)
+        rawTheta1 = rawThetaM - prevRawTheta
+        if rawTheta1 < 0:
+            rawTheta1 = 2 * np.pi + rawTheta1
+        if gtY > 0:
+            gtThetaM = math.acos(gtXMove / gtMove)
+        else:
+            gtThetaM = - math.acos(gtXMove / gtMove)
+        gtTheta1 = gtThetaM - prevGtTheta
+        if gtTheta1 < 0:
+            gtTheta1 = 2 * np.pi + gtTheta1
+
+        errorTheta1 = rawTheta1 - gtTheta1
+        if errorTheta1 > np.pi:
+            errorTheta1 = errorTheta1 - np.pi * 2
+        elif errorTheta1 < - np.pi:
+            errorTheta1 = errorTheta1 + np.pi * 2
+
+        # theta 2
+        rawTheta2 = rawTheta - prevRawTheta
+        gtTheta2 = gtTheta - prevGtTheta
+        errorTheta2 = rawTheta2 - gtTheta2
+        if errorTheta2 > np.pi:
+            errorTheta2 = errorTheta2 - np.pi * 2
+        elif errorTheta2 < - np.pi:
+            errorTheta2 = errorTheta2 + np.pi * 2
+
+        # use theta2 as moving direction
+        #errorTheta2AsDir = rawTheta - gtThetaM
+
+
+
+        # List appending
+        rawMoveList.append(rawMove)
+        gtMoveList.append(gtMove)
+        rawMinusGtMoveList.append(rawMove - gtMove)
+        errorTheta1List.append(errorTheta1)
+        errorTheta2List.append(errorTheta2)
+        #errorTheta2AsDirList.append(errorTheta2AsDir)
+
+        print(count)
         prevGtReading = gtReading
         prevReading = reading
-        print(count)
 
-    EstGtMoveArray = np.asarray(EstGtMoveList)
-    EstMoveSortedIdx = np.argsort(EstMoveList)
-    EstMoveSortedArray = np.sort(EstMoveList)
-    EstGtMoveSortedArray = EstGtMoveArray[EstMoveSortedIdx]
-    plt.scatter(EstMoveSortedArray, EstGtMoveSortedArray)
-    plt.show()
-    GtMoveArray = np.asarray(GtMoveList)
-    GtMoveSortedArray = GtMoveArray[EstMoveSortedIdx]
-    plt.plot(EstMoveSortedArray)
-    plt.plot(GtMoveSortedArray)
-    plt.show()
+
+    plotMove(rawMinusGtMoveList, rawMoveList, gtMoveList)
+    plotTheta(errorTheta1List, rawMoveList)
+    plotTheta(errorTheta2List, rawMoveList)
+    plotTheta(errorTheta2AsDirList, rawMoveList)
+
 if __name__ == '__main__':
     main()
