@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 class OccupancyGrid:
-    def __init__(self, mapXLength, mapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness, spokesStartIdx):
+    def __init__(self, mapXLength, mapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness):
         xNum = int(mapXLength / unitGridSize)
         yNum = int(mapYLength / unitGridSize)
         x = np.linspace(-xNum * unitGridSize / 2, xNum * unitGridSize / 2, num=xNum + 1)
@@ -19,7 +19,6 @@ class OccupancyGrid:
         self.mapXLim = [self.OccupancyGridX[0, 0], self.OccupancyGridX[0, -1]]
         self.mapYLim = [self.OccupancyGridY[0, 0], self.OccupancyGridY[-1, 0]]
         self.numSamplesPerRev = numSamplesPerRev
-        self.spokesStartIdx = spokesStartIdx
         self.angularStep = lidarFOV / numSamplesPerRev
         self.numSpokes = int(np.rint(2 * np.pi / self.angularStep))
         xGrid, yGrid, bearingIdxGrid, rangeIdxGrid = self.spokesGrid()
@@ -27,6 +26,8 @@ class OccupancyGrid:
         self.radByX = radByX
         self.radByY = radByY
         self.radByR = radByR
+        # theta= 0 is x direction. spokes=0 is y direc tion, spokesStartIdx is the first ray of lidar scan direction. spokes increase counter-clockwise
+        self.spokesStartIdx = int(((self.numSpokes / 2 - self.numSamplesPerRev) / 2) % self.numSpokes)
 
     def spokesGrid(self):
         # 0th ray is at south, then counter-clock wise increases. Theta 0 is at east.
@@ -158,9 +159,9 @@ class OccupancyGrid:
             return np.asarray(emptyXList), np.asarray(emptyYList), np.asarray(occupiedXList), np.asarray(occupiedYList)
 
     def plotOccupancyGrid(self, xRange = None, yRange= None, plotThreshold = True):
-        if xRange is None:
+        if xRange is None or xRange[0] < self.mapXLim[0] or xRange[1] > self.mapXLim[1]:
             xRange = self.mapXLim
-        if yRange is None:
+        if yRange is None or yRange[0] < self.mapYLim[0] or yRange[1] > self.mapYLim[1]:
             yRange = self.mapYLim
         ogMap = self.occupancyGridVisited / self.occupancyGridTotal
         xIdx, yIdx = self.convertRealXYToMapIdx(xRange, yRange)
@@ -188,8 +189,7 @@ def main():
         input = json.load(f)
         sensorData = input['map']
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
-    spokesStartIdx = int(0) # theta= 0 is x direction. spokes=0 is y direction, the first ray of lidar scan direction. spokes increase clockwise
-    og = OccupancyGrid(initMapXLength, initMapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness, spokesStartIdx)
+    og = OccupancyGrid(initMapXLength, initMapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness)
     count = 0
     plt.figure(figsize=(19.20, 19.20))
     xTrajectory, yTrajectory = [], []
@@ -199,7 +199,7 @@ def main():
         og.updateOccupancyGrid(sensorData[key])
         updateTrajectoryPlot(sensorData[key], xTrajectory, yTrajectory, colors, count)
         #if count == 100:
-        #    break
+        #   break
 
     plt.scatter(xTrajectory[0], yTrajectory[0], color='r', s=500)
     plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
