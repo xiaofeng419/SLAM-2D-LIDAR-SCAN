@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 class OccupancyGrid:
-    def __init__(self, mapXLength, mapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness):
+    def __init__(self, mapXLength, mapYLength, initXY, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness):
         xNum = int(mapXLength / unitGridSize)
         yNum = int(mapYLength / unitGridSize)
-        x = np.linspace(-xNum * unitGridSize / 2, xNum * unitGridSize / 2, num=xNum + 1)
-        y = np.linspace(-xNum * unitGridSize / 2, xNum * unitGridSize / 2, num=yNum + 1)
+        x = np.linspace(-xNum * unitGridSize / 2, xNum * unitGridSize / 2, num=xNum + 1) + initXY['x']
+        y = np.linspace(-xNum * unitGridSize / 2, xNum * unitGridSize / 2, num=yNum + 1) + initXY['y']
         self.OccupancyGridX, self.OccupancyGridY = np.meshgrid(x, y)
         self.occupancyGridVisited = np.ones((xNum + 1, yNum + 1))
         self.occupancyGridTotal = 2 * np.ones((xNum + 1, yNum + 1))
@@ -189,7 +189,8 @@ def main():
         input = json.load(f)
         sensorData = input['map']
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
-    og = OccupancyGrid(initMapXLength, initMapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness)
+    initXY = sensorData[sorted(sensorData.keys())[0]]
+    og = OccupancyGrid(initMapXLength, initMapYLength, initXY, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness)
     count = 0
     plt.figure(figsize=(19.20, 19.20))
     xTrajectory, yTrajectory = [], []
@@ -204,8 +205,8 @@ def main():
     plt.scatter(xTrajectory[0], yTrajectory[0], color='r', s=500)
     plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
     plt.plot(xTrajectory, yTrajectory)
-    og.plotOccupancyGrid([-12, 20], [-23.5, 7])
-    #og.plotOccupancyGrid()
+    #og.plotOccupancyGrid([-12, 20], [-23.5, 7])
+    og.plotOccupancyGrid()
 
 if __name__ == '__main__':
     main()

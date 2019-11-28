@@ -31,7 +31,7 @@ class ParticleFilter:
         for i in range(self.numParticles):
             variance += (self.particles[i].weight - 1 / self.numParticles) ** 2
             #variance += self.particles[i].weight**2
-        if variance > 0.85:
+        if variance > 0.88:
             return True
         else:
             return False
@@ -44,6 +44,10 @@ class ParticleFilter:
             self.particles[i].weight = self.particles[i].weight / weightSum
 
     def resample(self):
+
+        # for particle in self.particles:
+        #     particle.plotParticle()
+
         weights = np.zeros(self.numParticles)
         tempParticles = []
         for i in range(self.numParticles):
@@ -54,8 +58,7 @@ class ParticleFilter:
             self.particles[i] = copy.deepcopy(tempParticles[resampledParticlesIdx[i]])
             self.particles[i].weight = 1 / self.numParticles
 
-        # for particle in self.particles:
-        #     particle.plotParticle()
+
 
 class Particle:
     def __init__(self, ogParameters, smParameters):
@@ -118,8 +121,8 @@ def processSensorData(pf, sensorData, plotTrajectory = True):
             pf.resample()
             print("resample")
 
-        if count == 100:
-            break
+        # if count == 100:
+        #     break
 
     for particle in pf.particles:
         particle.plotParticle()
@@ -132,7 +135,7 @@ def readJson(jsonFile):
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
     scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, \
-        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.5, 5
+        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.2, 5
     sensorData = readJson("../DataSet/PreprocessedData/intel_gfs")
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
     numParticles = 15

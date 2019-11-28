@@ -6,14 +6,16 @@ from Utils.OccupancyGrid import OccupancyGrid
 from scipy.ndimage import gaussian_filter
 import math
 class ScanMatcher:
-    def __init__(self, og, searchRadius, searchHalfRad, scanSigmaInNumGrid, moveRSigma, missMatchProbAtCoarse, coarseFactor):
+    def __init__(self, og, searchRadius, searchHalfRad, scanSigmaInNumGrid, moveRSigma, maxMoveDeviation, turnSigma, missMatchProbAtCoarse, coarseFactor):
         self.searchRadius = searchRadius
         self.searchHalfRad = searchHalfRad
         self.og = og
         self.scanSigmaInNumGrid = scanSigmaInNumGrid
         self.coarseFactor = coarseFactor
         self.moveRSigma = moveRSigma
+        self.turnSigma = turnSigma
         self.missMatchProbAtCoarse = missMatchProbAtCoarse
+        self.maxMoveDeviation = maxMoveDeviation
 
     def frameSearchSpace(self, estimatedX, estimatedY, unitLength, sigma, missMatchProbAtCoarse):
         maxScanRadius = 1.1 * self.og.lidarMaxRange + self.searchRadius
@@ -42,7 +44,7 @@ class ScanMatcher:
         probSP[probSP > 0.5 * probMin] = 0
         return probSP
 
-    def matchScan(self, reading, estMovingDist, count, matchMax = True):
+    def matchScan(self, reading, estMovingDist, estMovingTheta, count, matchMax = True):
         """Iteratively find the best dx, dy and dtheta"""
         estimatedX, estimatedY, estimatedTheta, rMeasure = reading['x'], reading['y'], reading['theta'], reading['range']
         rMeasure = np.asarray(rMeasure)
@@ -55,7 +57,7 @@ class ScanMatcher:
         xRangeList, yRangeList, probSP = self.frameSearchSpace(estimatedX, estimatedY, coarseSearchStep, coarseSigma, self.missMatchProbAtCoarse)
         matchedPx, matchedPy, matchedReading, convTotal, coarseConfidence = self.searchToMatch(probSP, estimatedX, estimatedY,
             estimatedTheta, rMeasure, xRangeList, yRangeList, self.searchRadius,
-                self.searchHalfRad, coarseSearchStep, estMovingDist, matchMax)
+                self.searchHalfRad, coarseSearchStep, estMovingDist, estMovingTheta,fineSearch=False, matchMax=matchMax)
         #########   For Debug Only  #############
         # if count > 0:
         #    self.plotMatchOverlay(probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, coarseSearchStep)
@@ -68,7 +70,7 @@ class ScanMatcher:
         xRangeList, yRangeList, probSP = self.frameSearchSpace(matchedReading['x'], matchedReading['y'], fineSearchStep, fineSigma, fineMissMatchProbAtFine)
         matchedPx, matchedPy, matchedReading, convTotal, fineConfidence = self.searchToMatch(probSP, matchedReading['x'],
             matchedReading['y'], matchedReading['theta'], matchedReading['range'], xRangeList, yRangeList,
-                coarseSearchStep, fineSearchHalfRad, fineSearchStep, estMovingDist, matchMax)
+                coarseSearchStep, fineSearchHalfRad, fineSearchStep, estMovingDist, estMovingTheta, fineSearch=True, matchMax=True)
 
         #########   For Debug Only  #############
         #if count > 0:
@@ -87,17 +89,26 @@ class ScanMatcher:
         return px, py
 
     def searchToMatch(self, probSP, estimatedX, estimatedY, estimatedTheta, rMeasure, xRangeList, yRangeList,
-                      searchRadius, searchHalfRad, unitLength, estMovingDist, matchMax = True):
+                      searchRadius, searchHalfRad, unitLength, estMovingDist,  estMovingTheta, fineSearch = False, matchMax = True):
         px, py = self.covertMeasureToXY(estimatedX, estimatedY, estimatedTheta, rMeasure)
         numCellOfSearchRadius = int(searchRadius / unitLength)
         xMovingRange = np.arange(-numCellOfSearchRadius, numCellOfSearchRadius + 1)
         yMovingRange = np.arange(-numCellOfSearchRadius, numCellOfSearchRadius + 1)
         xv, yv = np.meshgrid(xMovingRange, yMovingRange)
-        #rv = math.log((1 / math.sqrt(2 * np.pi * self.moveRSigma ** 2) * unitLength)) - (1 / (2 * self.moveRSigma ** 2)) * (np.sqrt((xv * unitLength) ** 2 + (yv * unitLength) ** 2) - estMovingDist) ** 2
-        rv = - (1 / (2 * self.moveRSigma ** 2)) * (np.sqrt((xv * unitLength) ** 2 + (yv * unitLength) ** 2) - (estMovingDist)) ** 2
+        if fineSearch:
+            rv, thetaWeight = np.zeros(xv.shape), np.zeros(xv.shape)
+        else:
+            rv = - (1 / (2 * self.moveRSigma ** 2)) * (np.sqrt((xv * unitLength) ** 2 + (yv * unitLength) ** 2) - (estMovingDist)) ** 2
+            rrv = np.abs(np.sqrt((xv * unitLength) ** 2 + (yv * unitLength) ** 2) - estMovingDist)
+            rv[rrv > self.maxMoveDeviation] = -100  # no points deviates more than maxMoveDeviation
+            if estMovingTheta is not None:
+                distv = np.sqrt(np.square(xv) + np.square(yv))
+                distv[distv == 0] = 0.0001
+                thetav = np.arccos((xv * math.cos(estMovingTheta) + yv * math.sin(estMovingTheta)) / distv)
+                thetaWeight = -1 / (2 * self.turnSigma ** 2) * np.square(thetav)
+            else:
+                thetaWeight = np.zeros(xv.shape)
 
-        rrv = np.abs(np.sqrt((xv * unitLength) ** 2 + (yv * unitLength) ** 2) - estMovingDist)
-        rv[rrv > 0.25] = -100
         xv = xv.reshape((xv.shape[0], xv.shape[1], 1))
         yv = yv.reshape((yv.shape[0], yv.shape[1], 1))
         thetaRange = np.arange(-searchHalfRad, searchHalfRad + self.og.angularStep, self.og.angularStep)
@@ -117,7 +128,7 @@ class ScanMatcher:
             rotatedPyIdx = rotatedPyIdx + yv
             convResult = probSP[rotatedPyIdx, rotatedPxIdx]
             convResultSum = np.sum(convResult, axis=2)
-            convResultSum = convResultSum + rv
+            convResultSum = convResultSum + rv + thetaWeight
             convTotal[i, :, :] = convResultSum
         if matchMax:
             maxIdx = np.unravel_index(convTotal.argmax(), convTotal.shape)
@@ -164,21 +175,55 @@ class ScanMatcher:
         yIdx = (((py - beginY) / unitLength)).astype(int)
         return xIdx, yIdx
 
-def updateEstimatedPose(currentRawReading, previousMatchedReading, previousRawReading):
-    estimatedTheta = previousMatchedReading['theta'] + currentRawReading['theta'] - previousRawReading['theta']
-    estimatedReading = {'x': previousMatchedReading['x'], 'y': previousMatchedReading['y'], 'theta': estimatedTheta, 'range': currentRawReading['range']}
-    dx, dy = currentRawReading['x'] - previousRawReading['x'], currentRawReading['y'] - previousRawReading['y']
+def updateEstimatedPose(currentRawReading, prevMatchedReading, prevRawReading, prevRawMovingTheta, prevMatchedMovingTheta):
+    estimatedTheta = prevMatchedReading['theta'] + currentRawReading['theta'] - prevRawReading['theta']
+    estimatedReading = {'x': prevMatchedReading['x'], 'y': prevMatchedReading['y'], 'theta': estimatedTheta, 'range': currentRawReading['range']}
+    dx, dy = currentRawReading['x'] - prevRawReading['x'], currentRawReading['y'] - prevRawReading['y']
     estMovingDist = math.sqrt(dx**2 + dy**2)
-    return estimatedReading, estMovingDist
+    rawX, rawY, prevRawX, prevRawY = currentRawReading['x'], currentRawReading['y'], prevRawReading['x'], prevRawReading['y']
+    rawXMove, rawYMove = rawX - prevRawX, rawY - prevRawY
+    rawMove = math.sqrt((rawX - prevRawX) ** 2 + (rawY - prevRawY) ** 2)
 
-def updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count):
+    if rawMove > 0.3:
+        if prevRawMovingTheta != None:
+            if rawYMove > 0:
+                rawMovingTheta = math.acos(rawXMove / rawMove)  # between -pi and +pi
+            else:
+                rawMovingTheta = -math.acos(rawXMove / rawMove)
+            rawTurnTheta = rawMovingTheta - prevRawMovingTheta
+            estMovingTheta = prevMatchedMovingTheta + rawTurnTheta
+        else:
+            if rawYMove > 0:
+                rawMovingTheta = math.acos(rawXMove / rawMove)  # between -pi and +pi
+            else:
+                rawMovingTheta = -math.acos(rawXMove / rawMove)
+            estMovingTheta = None
+    else:
+        rawMovingTheta = None
+        estMovingTheta = None
+
+    return estimatedReading, estMovingDist, estMovingTheta, rawMovingTheta
+
+def updateTrajectory(matchedReading, xTrajectory, yTrajectory):
     x, y, theta, range = matchedReading['x'], matchedReading['y'], matchedReading['theta'], matchedReading['range']
     xTrajectory.append(x)
     yTrajectory.append(y)
-    if count % 1 == 0:
-        plt.scatter(x, y, color=next(colors), s=35)
 
-def processSensorData(sensorData, og, sm, plotTrajectory = True):
+def getMovingTheta(matchedReading, xTrajectory, yTrajectory):
+    x, y, theta, range = matchedReading['x'], matchedReading['y'], matchedReading['theta'], matchedReading['range']
+    prevX, prevY = xTrajectory[-1], yTrajectory[-1]
+    xMove, yMove = x - prevX, y - prevY
+    move = math.sqrt(xMove ** 2 + yMove ** 2)
+    if move != 0:
+        if yMove > 0:
+            movingTheta = math.acos(xMove / move)
+        else:
+            movingTheta = -math.acos(xMove / move)
+    else:
+        movingTheta = None
+    return movingTheta
+
+def processSensorData(sensorData, og, sm):
     # gtData = readJson("../DataSet/PreprocessedData/intel_corrected_log") #########   For Debug Only  #############
     count = 0
     plt.figure(figsize=(19.20, 19.20))
@@ -189,28 +234,31 @@ def processSensorData(sensorData, og, sm, plotTrajectory = True):
         print(count)
         if count == 1:
             og.updateOccupancyGrid(sensorData[key])
-            previousMatchedReading = sensorData[key]
-            previousRawReading = sensorData[key]
+            prevRawMovingTheta, prevMatchedMovingTheta = None, None
+            matchedReading, confidence = sensorData[key], 1
             #prevGtReading = gtData[key]  #########   For Debug Only  #############
-        currentRawReading = sensorData[key]
-        estimatedReading, estMovingDist = updateEstimatedPose(currentRawReading, previousMatchedReading, previousRawReading)
-        matchedReading, confidence = sm.matchScan(estimatedReading, estMovingDist, count)
+        else:
+            currentRawReading = sensorData[key]
+            estimatedReading, estMovingDist, estMovingTheta, rawMovingTheta = updateEstimatedPose(currentRawReading,
+                prevMatchedReading, prevRawReading, prevRawMovingTheta, prevMatchedMovingTheta)
+            matchedReading, confidence = sm.matchScan(estimatedReading, estMovingDist, estMovingTheta, count)
+            prevRawMovingTheta = rawMovingTheta
+            prevMatchedMovingTheta = getMovingTheta(matchedReading, xTrajectory, yTrajectory)
         #########   For Debug Only  #############
         #gtReading = gtData[key]
-        #compareGT(currentRawReading, previousRawReading, matchedReading, previousMatchedReading, gtReading, prevGtReading)
+        #compareGT(currentRawReading, prevRawReading, matchedReading, prevMatchedReading, gtReading, prevGtReading)
         #prevGtReading = gtReading
         #########################################
         og.updateOccupancyGrid(matchedReading)
-        # og.plotOccupancyGrid(plotThreshold=False)
-        previousMatchedReading = matchedReading
-        previousRawReading = sensorData[key]
+        updateTrajectory(matchedReading, xTrajectory, yTrajectory)
+        prevMatchedReading, prevRawReading = matchedReading, sensorData[key]
         #if count == 100:
-        #    break
-        if plotTrajectory:
-            updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count)
-    if plotTrajectory:
-        plt.scatter(xTrajectory[0], yTrajectory[0], color='r', s=500)
-        plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
+        #   break
+
+    for i in range(len(xTrajectory)):
+        plt.scatter(xTrajectory[i], yTrajectory[i], color=next(colors), s=35)
+    plt.scatter(xTrajectory[0], yTrajectory[0], color='r', s=500)
+    plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
     plt.plot(xTrajectory, yTrajectory)
     og.plotOccupancyGrid([-13, 20], [-25, 7], plotThreshold=False)
 
@@ -219,21 +267,21 @@ def readJson(jsonFile):
         input = json.load(f)
         return input['map']
 
-def compareGT(currentRawReading, previousRawReading, matchedReading, previousMatchedReading, gtReading, prevGtReading):
+def compareGT(currentRawReading, prevRawReading, matchedReading, prevMatchedReading, gtReading, prevGtReading):
     print("true last pos x: " + str(prevGtReading['x']) + ", y: " + str(prevGtReading['y']))
     print("true curr pos x: " + str(gtReading['x']) + ", y: " + str(gtReading['y']))
     gtMoveX, gtMoveY = gtReading['x'] - prevGtReading['x'], gtReading['y'] - prevGtReading['y']
     print("true move x: " + str(gtMoveX) + ", y: " + str(gtMoveY) + ", r: " + str(
         math.sqrt(gtMoveX ** 2 + gtMoveY ** 2)))
 
-    print("Estd last pos x: " + str(previousMatchedReading['x']) + ", y: " + str(previousMatchedReading['y']))
+    print("Estd last pos x: " + str(prevMatchedReading['x']) + ", y: " + str(prevMatchedReading['y']))
     print("Estd curr pos x: " + str(matchedReading['x']) + ", y: " + str(matchedReading['y']))
-    rawEstMoveX, rawEstMoveY = currentRawReading['x'] - previousRawReading['x'], currentRawReading['y'] - \
-                               previousRawReading['y']
+    rawEstMoveX, rawEstMoveY = currentRawReading['x'] - prevRawReading['x'], currentRawReading['y'] - \
+                               prevRawReading['y']
     print("raw move x: " + str(rawEstMoveX) + ", y: " + str(rawEstMoveY) + ", r: " + str(
         math.sqrt(rawEstMoveX ** 2 + rawEstMoveY ** 2)))
-    currMatchMinusRawMoveX = matchedReading['x'] - previousMatchedReading['x'] - rawEstMoveX
-    currMatchMinusRawMoveY = matchedReading['y'] - previousMatchedReading['y'] - rawEstMoveY
+    currMatchMinusRawMoveX = matchedReading['x'] - prevMatchedReading['x'] - rawEstMoveX
+    currMatchMinusRawMoveY = matchedReading['y'] - prevMatchedReading['y'] - rawEstMoveY
     print(
         "compensate move x: " + str(currMatchMinusRawMoveX) + ", y: " + str(currMatchMinusRawMoveY) + ", r: " + str(
             math.sqrt(currMatchMinusRawMoveX ** 2 + currMatchMinusRawMoveY ** 2)))
@@ -242,13 +290,14 @@ def compareGT(currentRawReading, previousRawReading, matchedReading, previousMat
 
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
-    scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, \
-        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.9, 5
+    scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, maxMoveDeviation, turnSigma, \
+        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.4, 5,
     sensorData = readJson("../DataSet/PreprocessedData/intel_gfs")
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
-    og = OccupancyGrid(initMapXLength, initMapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness)
-    sm = ScanMatcher(og, scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, moveRSigma, missMatchProbAtCoarse, coarseFactor)
-    processSensorData(sensorData, og, sm, plotTrajectory=True)
+    initXY = sensorData[sorted(sensorData.keys())[0]]
+    og = OccupancyGrid(initMapXLength, initMapYLength, initXY, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness)
+    sm = ScanMatcher(og, scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, moveRSigma, maxMoveDeviation, turnSigma, missMatchProbAtCoarse, coarseFactor)
+    processSensorData(sensorData, og, sm)
 
 if __name__ == '__main__':
     main()

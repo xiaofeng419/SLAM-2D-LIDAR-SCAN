@@ -24,7 +24,7 @@ def plotTheta(errorTheta1List, rawMoveList):
     rawMoveSortedArray = np.sort(rawMoveList)
     errorTheta1Array = np.asarray(errorTheta1List)
     errorSortedTheta1Array = errorTheta1Array[rawMoveSortedIdx]
-    plt.scatter(rawMoveSortedArray, errorSortedTheta1Array)
+    plt.scatter(rawMoveSortedArray, errorSortedTheta1Array, s = 1)
     plt.show()
 
 
@@ -41,13 +41,14 @@ def main():
         gtData = input['map']
     count = 0
 
-    rawMoveList, gtMoveList, rawMinusGtMoveList = [], [], []
+    rawMoveList, gtMoveList, rawMinusGtMoveList, turningAngleList = [], [], [], []
     errorTheta1List, errorTheta2List, errorTheta2AsDirList = [], [], []
     for key in sorted(sensorData.keys()):
         count += 1
         if count == 1:
             prevReading = sensorData[key]
             prevGtReading = gtData[key]
+            prevRawThetaM = None
             continue
         reading = sensorData[key]
         gtReading = gtData[key]
@@ -67,26 +68,51 @@ def main():
 
         # get theta 1
         ## raw thetaM
-        if rawY > 0:
-            rawThetaM = math.acos(rawXMove / rawMove)
-        else:
-            rawThetaM = -math.acos(rawXMove / rawMove)
-        rawTheta1 = rawThetaM - prevRawTheta
-        if rawTheta1 < 0:
-            rawTheta1 = 2 * np.pi + rawTheta1
-        if gtY > 0:
-            gtThetaM = math.acos(gtXMove / gtMove)
-        else:
-            gtThetaM = - math.acos(gtXMove / gtMove)
-        gtTheta1 = gtThetaM - prevGtTheta
-        if gtTheta1 < 0:
-            gtTheta1 = 2 * np.pi + gtTheta1
+        if rawMove > 0.3:
+            if prevRawThetaM != None:
 
-        errorTheta1 = rawTheta1 - gtTheta1
-        if errorTheta1 > np.pi:
-            errorTheta1 = errorTheta1 - np.pi * 2
-        elif errorTheta1 < - np.pi:
-            errorTheta1 = errorTheta1 + np.pi * 2
+                if rawYMove > 0:
+                    rawThetaM = math.acos(rawXMove / rawMove)
+                else:
+                    rawThetaM = -math.acos(rawXMove / rawMove)
+                rawTheta1 = rawThetaM - prevRawThetaM
+                if rawTheta1 < 0:
+                    rawTheta1 = 2 * np.pi + rawTheta1
+                if gtYMove > 0:
+                    gtThetaM = math.acos(gtXMove / gtMove)
+                else:
+                    gtThetaM = - math.acos(gtXMove / gtMove)
+                gtTheta1 = gtThetaM - prevGtThetaM
+                if gtTheta1 < 0:
+                    gtTheta1 = 2 * np.pi + gtTheta1
+
+                errorTheta1 = rawTheta1 - gtTheta1
+                if errorTheta1 > np.pi:
+                   errorTheta1 = errorTheta1 - np.pi * 2
+                elif errorTheta1 < - np.pi:
+                   errorTheta1 = errorTheta1 + np.pi * 2
+
+                prevRawThetaM = rawThetaM
+                prevGtThetaM = gtThetaM
+            else:
+                if rawYMove > 0:
+                    rawThetaM = math.acos(rawXMove / rawMove)
+                else:
+                    rawThetaM = -math.acos(rawXMove / rawMove)
+                if gtYMove > 0:
+                    gtThetaM = math.acos(gtXMove / gtMove)
+                else:
+                    gtThetaM = - math.acos(gtXMove / gtMove)
+                prevRawThetaM = rawThetaM
+                prevGtThetaM = gtThetaM
+                errorTheta1 = None
+                rawTheta1 = None
+        else:
+            prevRawThetaM = None
+            prevGtThetaM = None
+            errorTheta1 = None
+            rawTheta1 = None
+
 
         # theta 2
         rawTheta2 = rawTheta - prevRawTheta
@@ -108,17 +134,26 @@ def main():
         rawMinusGtMoveList.append(rawMove - gtMove)
         errorTheta1List.append(errorTheta1)
         errorTheta2List.append(errorTheta2)
+
+        turningAngleList.append(rawTheta1)
         #errorTheta2AsDirList.append(errorTheta2AsDir)
 
         print(count)
         prevGtReading = gtReading
         prevReading = reading
 
+    rawMoveArray = np.asarray(rawMoveList)
+    turningAngleArray = np.asarray(turningAngleList)
+    turningAngleArray = turningAngleArray[rawMoveArray > 0.1]
+    errorTheta1Array = np.asarray(errorTheta1List)
+    errorTheta1Array = errorTheta1Array[rawMoveArray > 0.1]
+    plt.scatter(turningAngleArray, errorTheta1Array)
+    plt.show()
 
     plotMove(rawMinusGtMoveList, rawMoveList, gtMoveList)
     plotTheta(errorTheta1List, rawMoveList)
     plotTheta(errorTheta2List, rawMoveList)
-    plotTheta(errorTheta2AsDirList, rawMoveList)
+    #plotTheta(errorTheta2AsDirList, rawMoveList)
 
 if __name__ == '__main__':
     main()
