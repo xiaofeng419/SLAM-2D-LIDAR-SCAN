@@ -233,7 +233,7 @@ def processSensorData(sensorData, og, sm):
         count += 1
         print(count)
         if count == 1:
-            og.updateOccupancyGrid(sensorData[key])
+            #og.updateOccupancyGrid(sensorData[key])
             prevRawMovingTheta, prevMatchedMovingTheta = None, None
             matchedReading, confidence = sensorData[key], 1
             #prevGtReading = gtData[key]  #########   For Debug Only  #############
@@ -252,8 +252,8 @@ def processSensorData(sensorData, og, sm):
         og.updateOccupancyGrid(matchedReading)
         updateTrajectory(matchedReading, xTrajectory, yTrajectory)
         prevMatchedReading, prevRawReading = matchedReading, sensorData[key]
-        #if count == 100:
-        #   break
+        if count == 100:
+           break
 
     for i in range(len(xTrajectory)):
         plt.scatter(xTrajectory[i], yTrajectory[i], color=next(colors), s=35)
@@ -291,7 +291,7 @@ def compareGT(currentRawReading, prevRawReading, matchedReading, prevMatchedRead
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
     scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, maxMoveDeviation, turnSigma, \
-        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.4, 5,
+        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.4, 5
     sensorData = readJson("../DataSet/PreprocessedData/intel_gfs")
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
     initXY = sensorData[sorted(sensorData.keys())[0]]

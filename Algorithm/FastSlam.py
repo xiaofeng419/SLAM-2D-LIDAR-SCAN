@@ -13,8 +13,8 @@ class ParticleFilter:
         self.particles = []
         self.initParticles(ogParameters, smParameters)
         self.step = 0
-        self.previousMatchedReading = None
-        self.previousRawReading = None
+        self.prevMatchedReading = None
+        self.prevRawReading = None
 
     def initParticles(self, ogParameters, smParameters):
         for i in range(self.numParticles):
@@ -31,7 +31,7 @@ class ParticleFilter:
         for i in range(self.numParticles):
             variance += (self.particles[i].weight - 1 / self.numParticles) ** 2
             #variance += self.particles[i].weight**2
-        if variance > 0.88:
+        if variance > 2 / self.numParticles:
             return True
         else:
             return False
@@ -62,10 +62,11 @@ class ParticleFilter:
 
 class Particle:
     def __init__(self, ogParameters, smParameters):
-        initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange, numSamplesPerRev = ogParameters
-        scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, missMatchProbAtCoarse, coarseFactor  = smParameters
-        og = OccupancyGrid(initMapXLength, initMapYLength, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness)
-        sm = ScanMatcher(og, scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, moveRSigma, missMatchProbAtCoarse, coarseFactor)
+        initMapXLength, initMapYLength, initXY, unitGridSize, lidarFOV, lidarMaxRange, numSamplesPerRev, wallThickness = ogParameters
+        scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid,  moveRSigma, maxMoveDeviation,\
+        turnSigma, missMatchProbAtCoarse, coarseFactor  = smParameters
+        og = OccupancyGrid(initMapXLength, initMapYLength, initXY, unitGridSize, lidarFOV, numSamplesPerRev, lidarMaxRange, wallThickness)
+        sm = ScanMatcher(og, scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, moveRSigma, maxMoveDeviation, turnSigma, missMatchProbAtCoarse, coarseFactor)
         self.og = og
         self.sm = sm
         self.xTrajectory = []
@@ -73,28 +74,67 @@ class Particle:
         self.weight = 1
 
     def updateEstimatedPose(self, currentRawReading):
-        estimatedTheta = self.previousMatchedReading['theta'] + currentRawReading['theta'] - self.previousRawReading['theta']
-        estimatedReading = {'x': self.previousMatchedReading['x'], 'y': self.previousMatchedReading['y'], 'theta': estimatedTheta,
+        estimatedTheta = self.prevMatchedReading['theta'] + currentRawReading['theta'] - self.prevRawReading['theta']
+        estimatedReading = {'x': self.prevMatchedReading['x'], 'y': self.prevMatchedReading['y'], 'theta': estimatedTheta,
                             'range': currentRawReading['range']}
-        dx, dy = currentRawReading['x'] - self.previousRawReading['x'], currentRawReading['y'] - self.previousRawReading['y']
+        dx, dy = currentRawReading['x'] - self.prevRawReading['x'], currentRawReading['y'] - self.prevRawReading['y']
         estMovingDist = math.sqrt(dx ** 2 + dy ** 2)
-        return estimatedReading, estMovingDist
+        rawX, rawY, prevRawX, prevRawY = currentRawReading['x'], currentRawReading['y'], self.prevRawReading['x'], \
+                                         self.prevRawReading['y']
+        rawXMove, rawYMove = rawX - prevRawX, rawY - prevRawY
+        rawMove = math.sqrt((rawX - prevRawX) ** 2 + (rawY - prevRawY) ** 2)
+
+        if rawMove > 0.3:
+            if self.prevRawMovingTheta != None:
+                if rawYMove > 0:
+                    rawMovingTheta = math.acos(rawXMove / rawMove)  # between -pi and +pi
+                else:
+                    rawMovingTheta = -math.acos(rawXMove / rawMove)
+                rawTurnTheta = rawMovingTheta - self.prevRawMovingTheta
+                estMovingTheta = self.prevMatchedMovingTheta + rawTurnTheta
+            else:
+                if rawYMove > 0:
+                    rawMovingTheta = math.acos(rawXMove / rawMove)  # between -pi and +pi
+                else:
+                    rawMovingTheta = -math.acos(rawXMove / rawMove)
+                estMovingTheta = None
+        else:
+            rawMovingTheta = None
+            estMovingTheta = None
+
+        return estimatedReading, estMovingDist, estMovingTheta, rawMovingTheta
+
+    def getMovingTheta(self, matchedReading):
+        x, y, theta, range = matchedReading['x'], matchedReading['y'], matchedReading['theta'], matchedReading['range']
+        prevX, prevY = self.xTrajectory[-1], self.yTrajectory[-1]
+        xMove, yMove = x - prevX, y - prevY
+        move = math.sqrt(xMove ** 2 + yMove ** 2)
+        if move != 0:
+            if yMove > 0:
+                movingTheta = math.acos(xMove / move)
+            else:
+                movingTheta = -math.acos(xMove / move)
+        else:
+            movingTheta = None
+        return movingTheta
+
 
     def update(self, reading, count):
         if count == 1:
-            self.og.updateOccupancyGrid(reading)
-            self.previousMatchedReading = reading
-            self.previousRawReading = reading
-        currentRawReading = reading
-        estimatedReading, estMovingDist = self.updateEstimatedPose(currentRawReading)
-        matchedReading, confidence = self.sm.matchScan(estimatedReading, estMovingDist, count, matchMax=False)
-        self.updateTrajectoryPlot(matchedReading)
+            self.prevRawMovingTheta, self.prevMatchedMovingTheta = None, None
+            matchedReading, confidence = reading, 1
+        else:
+            currentRawReading = reading
+            estimatedReading, estMovingDist, estMovingTheta, rawMovingTheta = self.updateEstimatedPose(currentRawReading)
+            matchedReading, confidence = self.sm.matchScan(estimatedReading, estMovingDist, estMovingTheta, count, matchMax=False)
+            self.prevRawMovingTheta = rawMovingTheta
+            self.prevMatchedMovingTheta = self.getMovingTheta(matchedReading)
+        self.updateTrajectory(matchedReading)
         self.og.updateOccupancyGrid(matchedReading)
-        self.previousMatchedReading = matchedReading
-        self.previousRawReading = reading
+        self.prevMatchedReading, self.prevRawReading = matchedReading, reading
         self.weight *= confidence
 
-    def updateTrajectoryPlot(self, matchedReading):
+    def updateTrajectory(self, matchedReading):
         x, y = matchedReading['x'], matchedReading['y']
         self.xTrajectory.append(x)
         self.yTrajectory.append(y)
@@ -120,8 +160,7 @@ def processSensorData(pf, sensorData, plotTrajectory = True):
         if pf.weightUnbalanced():
             pf.resample()
             print("resample")
-
-        # if count == 100:
+        #if count == 100:
         #     break
 
     for particle in pf.particles:
@@ -133,14 +172,16 @@ def readJson(jsonFile):
         return input['map']
 
 def main():
-    initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
-    scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, \
-        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.2, 5
+    initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10  # in Meters
+    scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, maxMoveDeviation, turnSigma, \
+        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.5, 5
     sensorData = readJson("../DataSet/PreprocessedData/intel_gfs")
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
+    initXY = sensorData[sorted(sensorData.keys())[0]]
     numParticles = 15
-    ogParameters = [initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange, numSamplesPerRev]
-    smParameters = [scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, missMatchProbAtCoarse, coarseFactor]
+    ogParameters = [initMapXLength, initMapYLength, initXY, unitGridSize, lidarFOV, lidarMaxRange, numSamplesPerRev, wallThickness]
+    smParameters = [scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, moveRSigma, maxMoveDeviation, turnSigma, \
+        missMatchProbAtCoarse, coarseFactor]
     pf = ParticleFilter(numParticles, ogParameters, smParameters)
     processSensorData(pf, sensorData, plotTrajectory=True)
 
