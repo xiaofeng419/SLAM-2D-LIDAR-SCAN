@@ -15,6 +15,7 @@ class ParticleFilter:
         self.step = 0
         self.prevMatchedReading = None
         self.prevRawReading = None
+        self.particlesTrajectory = []
 
     def initParticles(self, ogParameters, smParameters):
         for i in range(self.numParticles):
@@ -25,13 +26,15 @@ class ParticleFilter:
         for i in range(self.numParticles):
             self.particles[i].update(reading, count)
 
+
     def weightUnbalanced(self):
         self.normalizeWeights()
         variance = 0
         for i in range(self.numParticles):
             variance += (self.particles[i].weight - 1 / self.numParticles) ** 2
             #variance += self.particles[i].weight**2
-        if variance > 2 / self.numParticles:
+        print(variance)
+        if variance > ((self.numParticles - 1) / self.numParticles)**2 + (self.numParticles - 2) * (1 / self.numParticles)**2:
             return True
         else:
             return False
@@ -118,7 +121,6 @@ class Particle:
             movingTheta = None
         return movingTheta
 
-
     def update(self, reading, count):
         if count == 1:
             self.prevRawMovingTheta, self.prevMatchedMovingTheta = None, None
@@ -162,9 +164,13 @@ def processSensorData(pf, sensorData, plotTrajectory = True):
             print("resample")
         #if count == 100:
         #     break
-
+    maxWeight = 0
     for particle in pf.particles:
         particle.plotParticle()
+        if maxWeight < particle.weight:
+            maxWeight = particle.weight
+            bestParticle = particle
+    bestParticle.plotParticle()
 
 def readJson(jsonFile):
     with open(jsonFile, 'r') as f:
@@ -174,7 +180,7 @@ def readJson(jsonFile):
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10  # in Meters
     scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, maxMoveDeviation, turnSigma, \
-        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.5, 5
+        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.2, 5
     sensorData = readJson("../DataSet/PreprocessedData/intel_gfs")
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
     initXY = sensorData[sorted(sensorData.keys())[0]]

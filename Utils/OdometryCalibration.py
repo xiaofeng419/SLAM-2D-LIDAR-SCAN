@@ -12,11 +12,15 @@ def plotMove(rawMinusGtMoveList, rawMoveList, gtMoveList):
     EstMoveSortedArray = np.sort(rawMoveList)
     EstGtMoveSortedArray = EstGtMoveArray[EstMoveSortedIdx]
     plt.scatter(EstMoveSortedArray, EstGtMoveSortedArray)
+    plt.xlabel("m")
+    plt.ylabel("m")
     plt.show()
     GtMoveArray = np.asarray(gtMoveList)
     GtMoveSortedArray = GtMoveArray[EstMoveSortedIdx]
     plt.plot(EstMoveSortedArray)
     plt.plot(GtMoveSortedArray)
+    plt.xlabel("m")
+    plt.ylabel("m")
     plt.show()
 
 def plotTheta(errorTheta1List, rawMoveList):
@@ -25,6 +29,8 @@ def plotTheta(errorTheta1List, rawMoveList):
     errorTheta1Array = np.asarray(errorTheta1List)
     errorSortedTheta1Array = errorTheta1Array[rawMoveSortedIdx]
     plt.scatter(rawMoveSortedArray, errorSortedTheta1Array, s = 1)
+    plt.xlabel("m")
+    plt.ylabel("deg")
     plt.show()
 
 
