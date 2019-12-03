@@ -34,7 +34,8 @@ class ParticleFilter:
             variance += (self.particles[i].weight - 1 / self.numParticles) ** 2
             #variance += self.particles[i].weight**2
         print(variance)
-        if variance > ((self.numParticles - 1) / self.numParticles)**2 + (self.numParticles - 2) * (1 / self.numParticles)**2:
+        #if variance > ((self.numParticles - 1) / self.numParticles)**2 + (self.numParticles - 1) * (1 / self.numParticles)**2:
+        if variance > 2 / self.numParticles:
             return True
         else:
             return False
@@ -47,10 +48,9 @@ class ParticleFilter:
             self.particles[i].weight = self.particles[i].weight / weightSum
 
     def resample(self):
-
-        # for particle in self.particles:
-        #     particle.plotParticle()
-
+        for particle in self.particles:
+            particle.plotParticle()
+            print(particle.weight)
         weights = np.zeros(self.numParticles)
         tempParticles = []
         for i in range(self.numParticles):
@@ -60,8 +60,6 @@ class ParticleFilter:
         for i in range(self.numParticles):
             self.particles[i] = copy.deepcopy(tempParticles[resampledParticlesIdx[i]])
             self.particles[i].weight = 1 / self.numParticles
-
-
 
 class Particle:
     def __init__(self, ogParameters, smParameters):
@@ -180,7 +178,7 @@ def readJson(jsonFile):
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10  # in Meters
     scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, maxMoveDeviation, turnSigma, \
-        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.2, 5
+        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.1, 5
     sensorData = readJson("../DataSet/PreprocessedData/intel_gfs")
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
     initXY = sensorData[sorted(sensorData.keys())[0]]

@@ -59,7 +59,7 @@ class ScanMatcher:
             estimatedTheta, rMeasure, xRangeList, yRangeList, self.searchRadius,
                 self.searchHalfRad, coarseSearchStep, estMovingDist, estMovingTheta,fineSearch=False, matchMax=matchMax)
         #########   For Debug Only  #############
-        # if count > 0:
+        #if count > 14:
         #    self.plotMatchOverlay(probSP, matchedPx, matchedPy, matchedReading, xRangeList, yRangeList, coarseSearchStep)
         #########################################
         # Fine Search
@@ -138,7 +138,7 @@ class ScanMatcher:
             maxIdx = np.random.choice(np.arange(convTotalFlatten.size), 1, p=convTotalFlattenProb)[0]
             maxIdx = np.unravel_index(maxIdx, convTotal.shape)
 
-        confidence = math.exp(convTotal[maxIdx])
+        confidence = np.sum(np.exp(convTotal))
         dx, dy, dtheta = xMovingRange[maxIdx[2]] * unitLength, yMovingRange[maxIdx[1]] * unitLength, thetaRange[maxIdx[0]]
         matchedReading = {"x": estimatedX + dx, "y": estimatedY + dy, "theta": estimatedTheta + dtheta,
                           "range": rMeasure}
@@ -291,7 +291,7 @@ def compareGT(currentRawReading, prevRawReading, matchedReading, prevMatchedRead
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
     scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, maxMoveDeviation, turnSigma, \
-        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.1, 5
+        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.15, 5
     sensorData = readJson("../DataSet/PreprocessedData/intel_gfs")
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
     initXY = sensorData[sorted(sensorData.keys())[0]]
