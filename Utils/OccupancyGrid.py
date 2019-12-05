@@ -59,25 +59,25 @@ class OccupancyGrid:
     def expandOccupancyGridHelper(self, position, axis):
         gridShape = self.occupancyGridVisited.shape
         if axis == 0:
-            insertion = np.ones((int(gridShape[0] / 2),  gridShape[1]))
+            insertion = np.ones((int(gridShape[0] / 5),  gridShape[1]))
             if position == 0:
                 x = self.OccupancyGridX[0]
-                y = np.linspace(self.mapYLim[0] - int(gridShape[0] / 2) * self.unitGridSize, self.mapYLim[0],
-                                num=int(gridShape[0] / 2), endpoint=False)
+                y = np.linspace(self.mapYLim[0] - int(gridShape[0] / 5) * self.unitGridSize, self.mapYLim[0],
+                                num=int(gridShape[0] / 5), endpoint=False)
             else:
                 x = self.OccupancyGridX[0]
-                y = np.linspace(self.mapYLim[1] + self.unitGridSize, self.mapYLim[1] + (int(gridShape[0] / 2) + 1) * self.unitGridSize,
-                                num=int(gridShape[0] / 2), endpoint=False)
+                y = np.linspace(self.mapYLim[1] + self.unitGridSize, self.mapYLim[1] + (int(gridShape[0] / 5) ) * self.unitGridSize,
+                                num=int(gridShape[0] / 5), endpoint=False)
         else:
-            insertion = np.ones((gridShape[0], int(gridShape[1] / 2)))
+            insertion = np.ones((gridShape[0], int(gridShape[1] / 5)))
             if position == 0:
                 y = self.OccupancyGridY[:, 0]
-                x = np.linspace(self.mapXLim[0] - int(gridShape[1] / 2) * self.unitGridSize, self.mapXLim[0],
-                                num=int(gridShape[1] / 2), endpoint=False)
+                x = np.linspace(self.mapXLim[0] - int(gridShape[1] / 5) * self.unitGridSize, self.mapXLim[0],
+                                num=int(gridShape[1] / 5), endpoint=False)
             else:
                 y = self.OccupancyGridY[:, 0]
-                x = np.linspace(self.mapXLim[1] + self.unitGridSize, self.mapXLim[1] + (int(gridShape[1] / 2) + 1) * self.unitGridSize,
-                                num=int(gridShape[1] / 2), endpoint=False)
+                x = np.linspace(self.mapXLim[1] + self.unitGridSize, self.mapXLim[1] + (int(gridShape[1] / 5)) * self.unitGridSize,
+                                num=int(gridShape[1] / 5), endpoint=False)
         self.occupancyGridVisited = np.insert(self.occupancyGridVisited, [position], insertion, axis=axis)
         self.occupancyGridTotal = np.insert(self.occupancyGridTotal, [position], 2 * insertion, axis=axis)
         xv, yv = np.meshgrid(x, y)

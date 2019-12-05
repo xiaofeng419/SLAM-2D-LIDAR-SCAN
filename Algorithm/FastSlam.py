@@ -34,8 +34,8 @@ class ParticleFilter:
             variance += (self.particles[i].weight - 1 / self.numParticles) ** 2
             #variance += self.particles[i].weight**2
         print(variance)
-        #if variance > ((self.numParticles - 1) / self.numParticles)**2 + (self.numParticles - 1) * (1 / self.numParticles)**2:
-        if variance > 2 / self.numParticles:
+        if variance > ((self.numParticles - 1) / self.numParticles)**2 + (self.numParticles - 1.000000000000001) * (1 / self.numParticles)**2:
+        #if variance > 2 / self.numParticles:
             return True
         else:
             return False
@@ -48,9 +48,9 @@ class ParticleFilter:
             self.particles[i].weight = self.particles[i].weight / weightSum
 
     def resample(self):
-        for particle in self.particles:
-            particle.plotParticle()
-            print(particle.weight)
+        # for particle in self.particles:
+        #     particle.plotParticle()
+        #     print(particle.weight)
         weights = np.zeros(self.numParticles)
         tempParticles = []
         for i in range(self.numParticles):
@@ -160,6 +160,24 @@ def processSensorData(pf, sensorData, plotTrajectory = True):
         if pf.weightUnbalanced():
             pf.resample()
             print("resample")
+
+        plt.figure(figsize=(19.20, 19.20))
+        maxWeight = -1
+        for particle in pf.particles:
+            if maxWeight < particle.weight:
+                maxWeight = particle.weight
+                bestParticle = particle
+                plt.plot(particle.xTrajectory, particle.yTrajectory)
+
+        xRange, yRange = [-13, 20], [-25, 7]
+        ogMap = bestParticle.og.occupancyGridVisited / bestParticle.og.occupancyGridTotal
+        xIdx, yIdx = bestParticle.og.convertRealXYToMapIdx(xRange, yRange)
+        ogMap = ogMap[yIdx[0]: yIdx[1], xIdx[0]: xIdx[1]]
+        ogMap = np.flipud(1 - ogMap)
+        plt.imshow(ogMap, cmap='gray', extent=[xRange[0], xRange[1], yRange[0], yRange[1]])
+        plt.savefig('../Output/' + str(count).zfill(3) + '.png')
+        plt.close()
+
         #if count == 100:
         #     break
     maxWeight = 0
@@ -176,13 +194,13 @@ def readJson(jsonFile):
         return input['map']
 
 def main():
-    initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10  # in Meters
+    initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 50, 50, 0.02, np.pi, 10  # in Meters
     scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, wallThickness, moveRSigma, maxMoveDeviation, turnSigma, \
-        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.1, 5
+        missMatchProbAtCoarse, coarseFactor = 1.4, 0.25, 2, 5 * unitGridSize, 0.1, 0.25, 0.3, 0.15, 5
     sensorData = readJson("../DataSet/PreprocessedData/intel_gfs")
     numSamplesPerRev = len(sensorData[list(sensorData)[0]]['range'])  # Get how many points per revolution
     initXY = sensorData[sorted(sensorData.keys())[0]]
-    numParticles = 15
+    numParticles = 10
     ogParameters = [initMapXLength, initMapYLength, initXY, unitGridSize, lidarFOV, lidarMaxRange, numSamplesPerRev, wallThickness]
     smParameters = [scanMatchSearchRadius, scanMatchSearchHalfRad, scanSigmaInNumGrid, moveRSigma, maxMoveDeviation, turnSigma, \
         missMatchProbAtCoarse, coarseFactor]
