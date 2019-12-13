@@ -184,7 +184,7 @@ def updateTrajectoryPlot(matchedReading, xTrajectory, yTrajectory, colors, count
 def main():
     initMapXLength, initMapYLength, unitGridSize, lidarFOV, lidarMaxRange = 10, 10, 0.02, np.pi, 10 # in Meters
     wallThickness = 7 * unitGridSize
-    jsonFile = "../DataSet/PreprocessedData/intel_corrected_log"
+    jsonFile = "../DataSet/PreprocessedData/intel_gfs"
     with open(jsonFile, 'r') as f:
         input = json.load(f)
         sensorData = input['map']
@@ -206,7 +206,7 @@ def main():
     plt.scatter(xTrajectory[-1], yTrajectory[-1], color=next(colors), s=500)
     plt.plot(xTrajectory, yTrajectory)
     #og.plotOccupancyGrid([-12, 20], [-23.5, 7])
-    og.plotOccupancyGrid()
+    #og.plotOccupancyGrid(xRange =[-11.9, 20], yRange =[-23.5, 6.    og.plotOccupancyGrid()
 
 if __name__ == '__main__':
     main()
