@@ -45,9 +45,7 @@ which is a combination of both scan matching and motion model and the denominato
 where wt-1is the weight of particles of last time step. Given proposal distribution and the corresponding weight, we can perform particle filtering to update robot’s pose belief given new moving command and Lidar observation. Fig.9 is the result we obtained using 15 particles. We can clearly see that the algorithm successfully produces a globally consistent map and it gives a correct loop closure result when the robot revists the pre-visited area. The algorithm’s speed is 1 update per second.
 
 
-<script src="//yihui.org/js/math-code.js">
-</script>  Hi `$z = x + y$`. `$$a^2 + b^2 = c^2$$` `$$\begin{vmatrix}a & b\\ c & d \end{vmatrix}=ad-bc$$`
-<script async src="//mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML">  </script>
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}" title="\Large x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}" />
 
 ### Reference 
 [1]. http://ais.informatik.uni-freiburg.de/slamevaluation/datasets.php \
