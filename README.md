@@ -29,8 +29,9 @@ Fig. 2 illustrates the idea of multi-resolution search. The left image shows the
 </p>
 
 
-FastSLAM[3]:
+### FastSLAM[3]:
 We approximate the robot’s pose distribution by particles. In other words, at each timestep, the robot’s pose is not a single value but a belief and the belief is updated at each timestep by particle filter. As we know that the SLAM problem can be decomposed as:
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;p(x0:t,m|z1:t, u1:t) = p(x0:t|z1:t, u1:t) p(m|z1:t, x1:t)                               (1)"/>
                               p(x0:t,m|z1:t, u1:t) = p(x0:t|z1:t, u1:t) p(m|z1:t, x1:t)                               (1)
 where the first term is localization and once we have the trajectory from localization, the second term is a simple mapping problem. Therefore, the key of SLAM is to solve the robot’s trajectory x<sub>0:t</sub> given observation z<sub>1:t</sub>  and moving command u<sub>1:t</sub>. We can apply Bayes’ rule to further break down the first term as:
 p(x0:t|z1:t, u1:t)=p(zt|x0:t, z1:t-1, u1:t) p(x0:t| z1:t-1, u1:t)  
