@@ -25,28 +25,38 @@ Fig. 2 illustrates the idea of multi-resolution search. The left image shows the
  
 <p align="center">
   <img  src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/tree/master/Image/ScanMatching.png"><br>
-  <b>Fig.2 Fig.2 Scan Matching of Coarse Grid (Left) and Fine Grid (Right)</b><br>
+  <b>Fig.2 Scan Matching of Coarse Grid (Left) and Fine Grid (Right)</b><br>
 </p>
 
 
 ### FastSLAM[3]:
-We approximate the robot’s pose distribution by particles. In other words, at each timestep, the robot’s pose is not a single value but a belief and the belief is updated at each timestep by particle filter. As we know that the SLAM problem can be decomposed as:
-<img src="https://latex.codecogs.com/svg.latex?\Large&space;p(x0:t,m|z1:t, u1:t) = p(x0:t|z1:t, u1:t) p(m|z1:t, x1:t)                               (1)"/>
-                              p(x0:t,m|z1:t, u1:t) = p(x0:t|z1:t, u1:t) p(m|z1:t, x1:t)                               (1)
-where the first term is localization and once we have the trajectory from localization, the second term is a simple mapping problem. Therefore, the key of SLAM is to solve the robot’s trajectory x<sub>0:t</sub> given observation z<sub>1:t</sub>  and moving command u<sub>1:t</sub>. We can apply Bayes’ rule to further break down the first term as:
-p(x0:t|z1:t, u1:t)=p(zt|x0:t, z1:t-1, u1:t) p(x0:t| z1:t-1, u1:t)  
-                                                        =p(zt|xt, z1:t-1) p(xt| x0:t-1, z1:t-1, u1:t) p(x0:t-1| z1:t-1, u1:t-1)
-                                                         =p(zt|xt, z1:t-1) p(xt| xt-1, ut) p(x0:t-1| z1:t-1, u1:t-1)          (2)
-It is hard to directly sample from (2) and instead we can use importance sampling. Our proposal distribution is:
-P(zt | xt,  z1:t-1) P(xt| ut , xt-1) P(zt | xt,  z1:t-1) P(xt| ut , xt-1) dxt
+We approximate the robot’s pose distribution by particles. In other words, at each timestep, the robot’s pose is not a single value but a belief and the belief is updated at each timestep by particle filter. As we know that the SLAM problem can be decomposed as:  
+ 
+  <img src="https://latex.codecogs.com/svg.latex?\Large&space;p(x_{0:t},m\vert{z_{1:t}},u_{1:t})=p(x_{0:t}\vert{z}_{1:t},u_{1:t})p(m\vert{z}_{1:t},x_{1:t})\quad{(1)}"/>
+ 
+where the first term is localization and once we have the trajectory from localization, the second term is a simple mapping problem. Therefore, the key of SLAM is to solve the robot’s trajectory x<sub>0:t</sub>given observation z<sub>1:t</sub>  and moving command u<sub>1:t</sub>. We can apply Bayes’ rule to further break down the first term as:
+
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;p(x_{0:t}\vert{z}_{1:t},u_{1:t})=p(z_{t}\vert{x}_{0:t},z_{1:t}-1,u_{1:t})p(x_{0:t}\vert{z}_{1:t-1},u_{1:t})"/>
+ 
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;=p(z_t\vert{x}_t,z_{1:t-1})p(x_t\vert{x}_{0:t-1},z_{1:t-1},u_{1:t})p(x_{0:t-1}\vert{z}_{1:t-1},u_{1:t-1})"/>
+
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;=p(z_t\vert{x}_t,z_{1:t-1})p(x_{t}\vert{x}_{t-1},u_{1:t})p(x_{0:t-1}\vert{z}_{1:t-1},u_{1:t-1})\quad{(2)"/> 
+
+It is hard to directly sample from (2) and instead we can use importance sampling. Our proposal distribution is:\
+
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;\frac{p(z_t\vert{x}_t,z_{1:t-1})p(x_t\vert{u}_t,x_{t-1})}{\int{p}(z_t│x_t,z_{1:t-1})p(x_t\vert{u}_t,x_{t-1})dx_t}"/> 
+
+
 which is a combination of both scan matching and motion model and the denominator is just a normalizer. As we use scan matching method in [2], the integration in the denominator is simply the sum of the results of the entire searching area. The weight of importance sample is therefore: 
- wt = p(zt|xt, z1:t-1) p(xt| xt-1, ut) p(x0:t-1| z1:t-1, u1:t-1) P(zt | xt,  z1:t-1) P(xt| ut , xt-1)
-                                            =p(x0:t-1| z1:t-1, u1:t-1) P(zt | xt,  z1:t-1) P(xt| ut , xt-1) dxt
-                  =wt-1 P(zt | xt,  z1:t-1) P(xt| ut , xt-1) dxt
-where wt-1is the weight of particles of last time step. Given proposal distribution and the corresponding weight, we can perform particle filtering to update robot’s pose belief given new moving command and Lidar observation. Fig.9 is the result we obtained using 15 particles. We can clearly see that the algorithm successfully produces a globally consistent map and it gives a correct loop closure result when the robot revists the pre-visited area. The algorithm’s speed is 1 update per second.
+ 
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;w_t=\frac{p(z_{t}\vert{x}_t,z_{1:t-1})p(x_t\vert{u}_t,x_{t-1})p(x_{0:t-1}\vert{z}_{1:t-1},u_{1:t-1})}{p(z_t\vert{x}_t,z_{1:t-1})p(x_t\vert{u}_t,x_{t-1})}"/> 
 
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;=p(x_{0:t-1}\vert{z}_{1:t-1},u_{1:t-1})\int{p}(z_t\vert{x}_t,z_{1:t-1})p(x_t\vert{u}_t,x_{t-1})dx_t"/> 
 
-<img src="https://latex.codecogs.com/svg.latex?\Large&space;x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}" title="\Large x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}" />
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;=w_{t-1}\int{P}(z_t\vert{x}_t,z_{1:t-1})P(x_t\vert{u}_t,x_{t-1})dx_t"/>
+ 
+where w<sub>t-1</sub> is the weight of particles of last time step. Given proposal distribution and the corresponding weight, we can perform particle filtering to update robot’s pose belief given new moving command and Lidar observation. Fig.9 is the result we obtained using 15 particles. We can clearly see that the algorithm successfully produces a globally consistent map and it gives a correct loop closure result when the robot revists the pre-visited area. The algorithm’s speed is 1 update per second. 
+
 
 ### Reference 
 [1]. http://ais.informatik.uni-freiburg.de/slamevaluation/datasets.php \
