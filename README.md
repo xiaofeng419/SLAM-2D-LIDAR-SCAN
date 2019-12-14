@@ -3,7 +3,7 @@
 ### Demo
 Click below to play the demo video:
 <div align="center">
-  <a href="https://www.youtube.com/watch?v=qH-ZQsRhMQU"><img src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/tree/master/Image/SLAM_DEMO.png" alt="IMAGE ALT TEXT"></a>
+  <a href="https://www.youtube.com/watch?v=qH-ZQsRhMQU"><img src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/blob/master/Image/SLAM_DEMO.png" alt="IMAGE ALT TEXT"></a>
 </div>
 
 
@@ -11,8 +11,7 @@ Click below to play the demo video:
 The dataset is collected by Dirk Hähnel[1]. The robot platform is equipped with a 180deg FOV 2D lidar and a wheel odometry. There are 910 readings total and each reading contains robot’s x, y and theta(orientation) from odometry and 180 range-bearing reading spanning from -90deg to +90 deg. Both ground truth and raw data are provided with matching timestamp for each data point collected. Figure below shows the plot of both ground truth and raw data respectively. The big red dot is where robot started and each little dot indicates a location where a datapoint is collected. The color of the dots changes from red to purple as robot moving along its trajectory. The robot circled around four laps and ended where the big purple dot is.  
 
 <p align="center">
-  <img width="50%" src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/tree/master/Image/GroundTruthLabel.png">
-  <img width="48%" src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/tree/master/Image/rawOdometryLabel.png"><br>
+  <img width="50%" src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/blob/master/Image/GT_AND_RAW.png"><br>
   <b>Fig.1 Ground Truth (Left) And Raw Odometry Data (Right) </b><br>
 </p>
 
@@ -24,7 +23,7 @@ We applied multi-resolution strategy[2], which is to first downsample the space 
 Fig. 2 illustrates the idea of multi-resolution search. The left image shows the optimal search result under the coarse grid, where yellow cells are scan results of existing map and the red dots are the new laser reading. The coarse search locates the scan result as best as it can under that resolution and then a more refined search as shown on the right side fine tunes its final location to precisely align the two readings. 
  
 <p align="center">
-  <img  src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/tree/master/Image/ScanMatching.png"><br>
+  <img  src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/tree/master/blob/ScanMatching.png"><br>
   <b>Fig.2 Scan Matching of Coarse Grid (Left) and Fine Grid (Right)</b><br>
 </p>
 
