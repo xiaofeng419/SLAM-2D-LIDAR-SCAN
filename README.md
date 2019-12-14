@@ -7,6 +7,21 @@ Click below to play the demo video:
 </div>
 
 
+### Usage
+Run Occupancy Grid on ground truth data:
+```
+python Utils/OccupancyGrid.py 
+```
+Run Scan Matching algorithm alone on raw data.:
+```
+python Utils/ScanMatcher_OGBased.py 
+```
+Run FastSLAM algorithm on raw data.:
+```
+python Algorithm/FastSlam.py 
+```
+
+
 ### Dataset
 The dataset is collected by Dirk Hähnel[1]. The robot platform is equipped with a 180deg FOV 2D lidar and a wheel odometry. There are 910 readings total and each reading contains robot’s x, y and theta(orientation) from odometry and 180 range-bearing reading spanning from -90deg to +90 deg. Both ground truth and raw data are provided with matching timestamp for each data point collected. Figure below shows the plot of both ground truth and raw data respectively. The big red dot is where robot started and each little dot indicates a location where a datapoint is collected. The color of the dots changes from red to purple as robot moving along its trajectory. The robot circled around four laps and ended where the big purple dot is.  
 
@@ -23,7 +38,7 @@ We applied multi-resolution strategy[2], which is to first downsample the space 
 Fig. 2 illustrates the idea of multi-resolution search. The left image shows the optimal search result under the coarse grid, where yellow cells are scan results of existing map and the red dots are the new laser reading. The coarse search locates the scan result as best as it can under that resolution and then a more refined search as shown on the right side fine tunes its final location to precisely align the two readings. 
  
 <p align="center">
-  <img  src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/blob/master/blob/ScanMatching.png"><br>
+  <img  src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/blob/master/Image/ScanMatching.png"><br>
   <b>Fig.2 Scan Matching of Coarse Grid (Left) and Fine Grid (Right)</b><br>
 </p>
 
@@ -54,7 +69,12 @@ which is a combination of both scan matching and motion model and the denominato
 
 <img src="https://latex.codecogs.com/svg.latex?\Large&space;=w_{t-1}\int{P}(z_t\vert{x}_t,z_{1:t-1})P(x_t\vert{u}_t,x_{t-1})dx_t"/>
  
-where w<sub>t-1</sub> is the weight of particles of last time step. Given proposal distribution and the corresponding weight, we can perform particle filtering to update robot’s pose belief given new moving command and Lidar observation. Fig.9 is the result we obtained using 15 particles. We can clearly see that the algorithm successfully produces a globally consistent map and it gives a correct loop closure result when the robot revists the pre-visited area. The algorithm’s speed is 1 update per second. 
+where w<sub>t-1</sub> is the weight of particles of last time step. Given proposal distribution and the corresponding weight, we can perform particle filtering to update robot’s pose belief given new moving command and Lidar observation. Fig.3 is the result we obtained using 15 particles. We can clearly see that the algorithm successfully produces a globally consistent map and it gives a correct loop closure result when the robot revists the pre-visited area.  
+
+<p align="center">
+  <img  src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/blob/master/Image/FastSLAM_Result.png"><br>
+  <b>Fig.3 SLAM Result Using FastSLAM </b><br>
+</p>
 
 
 ### Reference 
