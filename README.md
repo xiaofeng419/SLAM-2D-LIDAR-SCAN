@@ -66,7 +66,7 @@ We applied multi-resolution strategy[2], which is to first downsample the space 
 Fig.4 illustrates the idea of multi-resolution search. The left image shows the optimal search result under the coarse grid, where yellow cells are scan results of existing map and the red dots are the new laser reading. The coarse search locates the scan result as best as it can under that resolution and then a more refined search as shown on the right side fine tunes its final location to precisely align the two readings. 
  
 <p align="center">
-  <img  src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/blob/master/Image/ScanMatching.png"><br>
+  <img width="80%" src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/blob/master/Image/ScanMatching.png"><br>
   <b>Fig.4 Scan Matching of Coarse Grid (Left) and Fine Grid (Right)</b><br>
 </p>
 
