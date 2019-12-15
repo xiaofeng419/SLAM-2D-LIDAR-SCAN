@@ -37,7 +37,7 @@ Each sensor carries a certain amount of uncertainty. For the 2D lidar, each read
 Based on the above reasoning, we can model this problem as a special type of Partially Observable Markov Decision Process (POMDP). At time t, let x<sub>t</sub> be the actual pose of robot, z<sub>t</sub> be its sensor reading and u<sub>t</sub> be the moving command, and we denote ‘m’ be the actual world map. SLAM problem can be represented as POMDP shown in Fig 2.
 
 <p align="center">
-  <img width="100%" src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/blob/master/Image/POMDP.png"><br>
+  <img width="40%" src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/blob/master/Image/POMDP.png"><br>
   <b>Fig.2 POMDP Representation of SLAM </b><br>
 </p>
 
@@ -51,7 +51,7 @@ The first term is the robot’s trajectory and the second term is simply the map
 The map of the environment can be represented as occupancy grid. Each cell represents a 2D location (x, y) and it also holds a tuple (a + 1, b + 1) value which keeps track of the laser scanning result, where a is the number of times it has been detected as occupied and b is the number of times that it has been detected as empty. The tuple value here represents a Direchlet distribution with (1, 1) as initial value, which means it is equally likely to be empty or occupied as we have no prior info. With robots moving around, every time a cell is covered under laser scanning radius, its tuple (a, b) value will be updated accordingly. As illustrated by Fig. 3[3], each ray covers a fan area between adjacent rays, and all cells within scan area have a closest ray assigned. If the cell to robot distance is less than (detected range – α/2), it is regarded as empty and if the distance is within (detected range± α/2), it is regarded as occupied. Otherwise, its tuple value will not be updated. 
  
 <p align="center">
-  <img width="100%" src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/blob/master/Image/RayTracing.png"><br>
+  <img width="40%" src="https://github.com/xiaofeng419/ROBOTICS_2DSCAN_SLAM/blob/master/Image/RayTracing.png"><br>
   <b>Fig. 3 Occupancy Grid Ray Tracing Model </b><br>
 </p>
 
